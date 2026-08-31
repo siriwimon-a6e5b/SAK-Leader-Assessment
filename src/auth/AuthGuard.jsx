@@ -52,7 +52,7 @@ function getRoleFromToken(token) {
   //   "PST083",
   //   "PST084",
   // ];
-  const adminWP = ["003792"];
+  const adminWP = ["003792"]; 
 
   const isUser =
     userRG.includes(PerRG) && PerST === "1";
