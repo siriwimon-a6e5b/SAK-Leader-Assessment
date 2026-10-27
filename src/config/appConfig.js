@@ -6,6 +6,8 @@ export const appConfig = {
     tokenStorageKey: "userToken",
     roleStorageKey: "role",
     userLevelStorageKey: "userLevel",
+    // Employee IDs allowed to switch views; existing admin access is also required.
+    roleSwitchEmployeeIds: ["003792","000806","002367","000430","001094","002322"],
   },
   roles: {
     admin: {

@@ -8,6 +8,7 @@ import {
   TeamOutlined,
 } from "@ant-design/icons";
 import { appConfig } from "../config/appConfig";
+import AssessmentMenuLabel from "../layouts/components/AssessmentMenuLabel";
 
 const LeaderDashboardPage = lazy(() => import("../pages/User/LeaderDashboardPage"));
 const ManagerDashboardPage = lazy(() => import("../pages/User/ManagerDashboardPage"));
@@ -37,7 +38,7 @@ export const userRoutes = [
   },
   {
     path: "/User_Check",
-    label: "ประเมินประจำปี",
+    label: <AssessmentMenuLabel />,
     icon: <AuditOutlined />,
     element: <UserDashboardPage />,
     showInMenu: true,
@@ -98,7 +99,8 @@ export const userRoutes = [
     icon: <BarChartOutlined />,
     element: <LeaderDashboardPage />,
     showInMenu: true,
-    allowedUserLevels: ["employee","leader", "manager"],
+    allowedUserLevels: allUserLevels,
+    requiresOwnResults: true,
   },
   // {
   //   key: "leader-assessment",
@@ -132,30 +134,31 @@ export const userRoutes = [
     element: <ManagerDashboardPage />,
     showInMenu: true,
     allowedUserLevels: ["manager"],
+    requiresRegionalScores: true,
   },
-  {
-    key: "manager-report",
-    label: "รายงานผู้จัดการ",
-    icon: <FileSearchOutlined />,
-    showInMenu: true,
-    allowedUserLevels: ["manager"],
-    children: [
-      {
-        path: "/Manager_Check",
-        menuKey: "/Manager_Check?section=team",
-        label: "สถานะทีม",
-        icon: <TeamOutlined />,
-        element: <ManagerDashboardPage />,
-        allowedUserLevels: ["manager"],
-      },
-      {
-        path: "/Manager_Check",
-        menuKey: "/Manager_Check?section=summary",
-        label: "สรุปผลประเมิน",
-        icon: <BarChartOutlined />,
-        element: <ManagerDashboardPage />,
-        allowedUserLevels: ["manager"],
-      },
-    ],
-  },
+  // {
+  //   key: "manager-report",
+  //   label: "รายงานผู้จัดการ",
+  //   icon: <FileSearchOutlined />,
+  //   showInMenu: true,
+  //   allowedUserLevels: ["manager"],
+  //   children: [
+  //     {
+  //       path: "/Manager_Check",
+  //       menuKey: "/Manager_Check?section=team",
+  //       label: "สถานะทีม",
+  //       icon: <TeamOutlined />,
+  //       element: <ManagerDashboardPage />,
+  //       allowedUserLevels: ["manager"],
+  //     },
+  //     {
+  //       path: "/Manager_Check",
+  //       menuKey: "/Manager_Check?section=summary",
+  //       label: "สรุปผลประเมิน",
+  //       icon: <BarChartOutlined />,
+  //       element: <ManagerDashboardPage />,
+  //       allowedUserLevels: ["manager"],
+  //     },
+  //   ],
+  // },
 ];

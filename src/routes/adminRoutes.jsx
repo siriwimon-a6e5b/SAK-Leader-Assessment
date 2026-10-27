@@ -3,14 +3,14 @@ import {
   BarChartOutlined,
   CalendarOutlined,
   CheckSquareOutlined,
+  FileExcelOutlined,
   FileTextOutlined,
   IdcardOutlined,
   RollbackOutlined,
   SafetyOutlined,
 } from "@ant-design/icons";
-import { Badge } from "antd";
+import ApprovalMenuLabel from "../layouts/components/ApprovalMenuLabel";
 import { appConfig } from "../config/appConfig";
-import { assessmentApprovalItems } from "../pages/Admin/adminAssessmentData";
 
 const AdminApprovalPage = lazy(() => import("../pages/Admin/AdminApprovalPage"));
 const AdminDashboardPage = lazy(() => import("../pages/Admin/AdminDashboardPage"));
@@ -28,10 +28,6 @@ const AdminSupervisorProfileDetailPage = lazy(() =>
   import("../pages/Admin/AdminSupervisorProfileDetailPage"),
 );
 
-const pendingApprovalCount = assessmentApprovalItems.filter(
-  (item) => item.status === "รอตรวจ",
-).length;
-
 const AdminAssessmentRoundsPage = lazy(() =>
   import("../pages/Admin/AdminAssessmentRoundsPage"),
 );
@@ -40,6 +36,9 @@ const AdminAssessmentRoundDetailPage = lazy(() =>
 );
 const AdminAssessmentFormsPage = lazy(() =>
   import("../pages/Admin/AdminAssessmentFormsPage"),
+);
+const AdminAssessmentExportPage = lazy(() =>
+  import("../pages/Admin/AdminAssessmentExportPage"),
 );
 
 export const adminRoutes = [
@@ -63,13 +62,14 @@ export const adminRoutes = [
         icon: <SafetyOutlined />,
         element: <AdminDashboardPage />,
         showInMenu: true,
-      }, {
-        path: "/Admin_Dashboard",
-        label: "แดชบอร์ดผู้บริหาร",
-        icon: <BarChartOutlined />,
-        element: <AdminExecutiveDashboardPage />,
-        showInMenu: true,
-      },
+      }
+      // , {
+      //   path: "/Admin_Dashboard",
+      //   label: "แดชบอร์ดผู้บริหาร",
+      //   icon: <BarChartOutlined />,
+      //   element: <AdminExecutiveDashboardPage />,
+      //   showInMenu: true,
+      // },
     ],
   },
   // {
@@ -105,12 +105,7 @@ export const adminRoutes = [
   },
   {
     path: "/Admin_Approval",
-    label: (
-      <span className="menu-label-with-badge">
-        อนุมัติผลการประเมิน
-        <Badge count={pendingApprovalCount} size="small" />
-      </span>
-    ),
+    label: <ApprovalMenuLabel />,
     icon: <CheckSquareOutlined />,
     element: <AdminApprovalPage />,
     showInMenu: true,
@@ -142,6 +137,13 @@ export const adminRoutes = [
     label: "จัดการแบบฟอร์มประเมิน",
     icon: <FileTextOutlined />,
     element: <AdminAssessmentFormsPage />,
+    showInMenu: true,
+  },
+  {
+    path: "/Admin_Assessment_Export",
+    label: "Export Excel ผลประเมิน",
+    icon: <FileExcelOutlined />,
+    element: <AdminAssessmentExportPage />,
     showInMenu: true,
   },
   // {

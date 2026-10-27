@@ -85,6 +85,7 @@ function buildCreateFormPayload(values, adminToken) {
     form_name: values.name?.trim(),
     form_description: values.description?.trim() || "แบบประเมินที่สร้างใหม่",
     idAdminNew: adminToken.PerD,
+    PerTiNa: adminToken.PerTiNa,
     // create_position: adminToken.PerPST_N,
     // create_workplace: adminToken.PerWP_N,
     // is_selectable: false,
@@ -108,6 +109,7 @@ function buildSaveFormDetailPayload(form, adminToken) {
   return {
     LAF_ID: form.LAF_ID,
     idAdminNew: adminToken.PerD,
+    PerTiNa: adminToken.PerTiNa,
     topics: (form.topics || []).map((topic, topicIndex) => {
       const topicType = getTopicType(topic);
 
@@ -550,6 +552,7 @@ export default function AdminAssessmentFormsPage() {
         LAF_ID: formId,
         LAF_Status: nextStatus,
         idAdminNew: adminToken.PerD,
+        PerTiNa: adminToken.PerTiNa,
       };
       const response = await apiClient.post(
         "/api/insurances/updateFormStatus",
@@ -612,6 +615,7 @@ export default function AdminAssessmentFormsPage() {
           const payload = {
             LAF_ID: formId,
             idAdminNew: adminToken.PerD,
+            PerTiNa: adminToken.PerTiNa,
           };
           const response = await apiClient.post(
             "/api/insurances/deleteForm",
@@ -677,6 +681,7 @@ export default function AdminAssessmentFormsPage() {
             LAF_ID: selectedForm.LAF_ID,
             LAC_ID: targetTopic.LAC_ID,
             idAdminNew: adminToken.PerD,
+            PerTiNa: adminToken.PerTiNa,
           };
 
           // console.log(payload)
@@ -753,6 +758,7 @@ export default function AdminAssessmentFormsPage() {
             LAC_ID: targetTopic.LAC_ID,
             LAQ_ID: targetQuestion.LAQ_ID,
             idAdminNew: adminToken.PerD,
+            PerTiNa: adminToken.PerTiNa,
           };
 
           const response = await apiClient.post(
@@ -1009,7 +1015,7 @@ export default function AdminAssessmentFormsPage() {
     >
       {contextHolder}
       {modalContextHolder}
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} className="assessment-forms-summary-row">
         <Col xs={24} md={6}>
           <MetricCard
             label="แบบประเมินทั้งหมด"

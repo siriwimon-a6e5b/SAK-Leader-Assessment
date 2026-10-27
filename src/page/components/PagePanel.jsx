@@ -3,10 +3,13 @@ import { Button, Card, Col, Row, Space, Typography } from "antd";
 export function PageHeader({ eyebrow, title, description, action }) {
   return (
     <div className="page-heading">
-      <div>
-        {eyebrow ? <Typography.Text className="access-eyebrow">{eyebrow}</Typography.Text> : null}
-        <Typography.Title level={2}>{title}</Typography.Title>
-        {description ? <Typography.Paragraph>{description}</Typography.Paragraph> : null}
+      <div className="page-heading-main">
+        <div className="page-heading-marker" />
+        <div>
+          {eyebrow ? <Typography.Text className="access-eyebrow">{eyebrow}</Typography.Text> : null}
+          <Typography.Title level={2}>{title}</Typography.Title>
+          {description ? <Typography.Paragraph>{description}</Typography.Paragraph> : null}
+        </div>
       </div>
       {action ? <div className="page-heading-action">{action}</div> : null}
     </div>

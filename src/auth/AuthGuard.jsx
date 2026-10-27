@@ -1,82 +1,15 @@
+import { loadOwnAssessmentResults, useOwnAssessmentResults } from "../stores/ownAssessmentResults";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { appConfig } from "../config/appConfig";
 import { getInitialUserDetail } from "../recoilstore/userStores";
 import { getAllowedPaths, getRoleHomePath } from "../routes";
-
-function decodeBase64(value) {
-  if (!value) return "";
-
-  try {
-    return decodeURIComponent(
-      atob(value)
-        .split("")
-        .map((char) => `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`)
-        .join(""),
-    );
-  } catch {
-    return "";
-  }
-}
-
-function readTokenValue(value) {
-  const decoded = decodeBase64(value);
-  return decoded || String(value || "");
-}
+import { canViewRegionalScoresFromToken, getUserLevelFromToken } from "./roleAccess";
+import { getEffectiveRole } from "./roleView";
 
 function getTokenStorageKey(locationSearch) {
   return `${localStorage.getItem(appConfig.auth.tokenStorageKey) || ""}|${locationSearch}`;
-}
-
-function getRoleFromToken(token) {
-  const PerD = readTokenValue(token.PerD);
-  const PerST = readTokenValue(token.PerST);
-  const AgU = readTokenValue(token.AgU);
-  const PerPST = readTokenValue(token.PerPST);
-  const PerRG = readTokenValue(token.PerRG);
-  const PerWP = readTokenValue(token.PerWP);
-  const PerExp_Token = readTokenValue(token.PerExp_Token); 
-
-  const userRG = ["1", "2", "3", "4", "5", "6"];
-  // const userPST = [
-  //   "PST014",
-  //   "PST015",
-  //   "PST016",
-  //   "PST017",
-  //   "PST018",
-  //   "PST019",
-  //   "PST119",
-  //   "PST020",
-  //   "PST025",
-  //   "PST083",
-  //   "PST084",
-  // ];
-  const adminWP = ["003792"]; 
-
-  const isUser =
-    userRG.includes(PerRG) && PerST === "1";
-  const isAdmin = adminWP.includes(PerD) || (AgU === "AGAD" && PerST === "1");
-  // const isUserOut = PerWP === "WP1075";
-
-  // if (isUserOut) return { role: "userOut", PerExp_Token };
-  if (isAdmin) return { role: "admin", PerExp_Token };
-  if (isUser) return { role: "user", PerExp_Token };
-
-  return { role: "guest", PerExp_Token };
-}
-
-//แยกสิทธิ์ระดับ User
-function getUserLevelFromToken(token, role) {
-  if (role !== "user") return "employee";
-
-  const PerPST_LV = Number(readTokenValue(token.PerPST_LV));
-  const PerRG = readTokenValue(token.PerRG);
-
-  if (PerPST_LV >= 4 || PerRG === "5") return "manager";
-  if (PerPST_LV >= 2 || PerRG === "3" || PerRG === "4") return "leader";
-
-  return "employee";
 }
 
 export default function AuthGuard() {
@@ -85,6 +18,8 @@ export default function AuthGuard() {
   const lastTokenKey = useRef("");
   const location = useLocation();
   const navigate = useNavigate();
+  const resultsStatus = useOwnAssessmentResults((state) => state.status);
+  const canViewOwnResults = useOwnAssessmentResults((state) => state.canView);
 
   const publicRoutes = [/^\/DataReportDSRs\/.+$/];
   const isPublicRoute = publicRoutes.some((regex) =>
@@ -105,7 +40,13 @@ export default function AuthGuard() {
     syncToken(true);
 
     const handleFocus = () => syncToken();
-    const handleStorage = () => syncToken(true);
+    const handleStorage = (event) => {
+      // Roles are per-tab view preferences; only shared login changes need syncing.
+      if (event.storageArea === localStorage &&
+          (event.key === appConfig.auth.tokenStorageKey || event.key === null)) {
+        syncToken();
+      }
+    };
 
     window.addEventListener("focus", handleFocus);
     window.addEventListener("storage", handleStorage);
@@ -126,6 +67,7 @@ export default function AuthGuard() {
     }
 
     if (!token) {
+      loadOwnAssessmentResults();
       if (location.pathname !== "/") {
         navigate("/", { replace: true });
       }
@@ -135,8 +77,9 @@ export default function AuthGuard() {
     }
 
     try {
-      const { role, PerExp_Token } = getRoleFromToken(token);
+      const { role, PerExp_Token } = getEffectiveRole(token);
       const userLevel = getUserLevelFromToken(token, role);
+      const canViewRegionalScores = canViewRegionalScoresFromToken(token, role);
 
       if (Number(PerExp_Token) * 1000 < Date.now()) {
         Swal.fire({
@@ -163,11 +106,14 @@ export default function AuthGuard() {
         return;
       }
 
-      localStorage.setItem(appConfig.auth.roleStorageKey, role);
-      localStorage.setItem(appConfig.auth.userLevelStorageKey, userLevel);
+      sessionStorage.setItem(appConfig.auth.roleStorageKey, role);
+      sessionStorage.setItem(appConfig.auth.userLevelStorageKey, userLevel);
 
-      const homePath = getRoleHomePath(role, userLevel);
-      const allowedPaths = getAllowedPaths(role, { userLevel });
+      loadOwnAssessmentResults();
+      if (role === "user" && location.pathname === "/Leader_Check" && resultsStatus !== "ready") return;
+      const defaultHome = getRoleHomePath(role, userLevel);
+      const homePath = defaultHome === "/Leader_Check" && !canViewOwnResults ? "/User_Check" : defaultHome;
+      const allowedPaths = getAllowedPaths(role, { userLevel, canViewOwnResults, canViewRegionalScores });
       const isAllowedPath = allowedPaths.some((path) =>
         location.pathname.startsWith(path),
       );
@@ -181,7 +127,7 @@ export default function AuthGuard() {
     } finally {
       setLoading(false);
     }
-  }, [isPublicRoute, token, navigate, location.pathname]);
+  }, [isPublicRoute, token, navigate, location.pathname, resultsStatus, canViewOwnResults]);
 
   if (loading) return null;
   return null;

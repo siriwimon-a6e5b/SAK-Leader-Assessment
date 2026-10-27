@@ -2,7 +2,7 @@
 
 :root {
   color: #1f2937;
-  background: #f5f7fb;
+  background: #eef6ff;
   font-family:
     Kanit,
     system-ui,
@@ -28,7 +28,10 @@ body,
 
 body {
   margin: 0;
-  background: #f5f7fb;
+  background:
+    linear-gradient(115deg, #ffffff 0%, #eef6ff 54%, #dcebff 100%),
+    #eef6ff;
+  background-attachment: fixed;
   font-family:
     Kanit,
     system-ui,

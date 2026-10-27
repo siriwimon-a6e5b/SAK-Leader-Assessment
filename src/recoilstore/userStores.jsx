@@ -18,6 +18,20 @@ apiClient.interceptors.request.use(
       "x-api-key": BASE_API_KEY,
     };
 
+    const tokenString = getTokenFromUrl() || localStorage.getItem(TOKEN_STORAGE_KEY);
+    const userTokenData = unwrapUserToken(parseTokenString(tokenString));
+    const userDetail = mapUserDetail(userTokenData);
+    if (userDetail) {
+      config.headers.Authorization = stringifyToken(userTokenData);
+      config.params = {
+        ...(config.params || {}),
+        _exp_Token: userDetail.PerExp_Token,
+        _PerWP_Token: userDetail.PerWP,
+        _PerRG_Token: userDetail.PerRG,
+        _PerST_Token: userDetail.PerST,
+      };
+    }
+
     if (!(config.data instanceof FormData)) {
       config.headers["Content-Type"] = "application/json";
     }
@@ -129,26 +143,19 @@ function mapUserDetail(userTokenData) {
   };
 }
 
+// Read identity for display without registering another request interceptor.
+export function readCurrentUserDetail() {
+  const params = new URLSearchParams(window.location.search);
+  const tokenString = params.get("token") || params.get("userToken") || params.get("Token")
+    || localStorage.getItem(TOKEN_STORAGE_KEY);
+  return mapUserDetail(unwrapUserToken(parseTokenString(tokenString)));
+}
+
 export function getInitialUserDetail() {
   const tokenString = getTokenFromUrl() || localStorage.getItem(TOKEN_STORAGE_KEY);
   const rawTokenData = parseTokenString(tokenString);
   const userTokenData = unwrapUserToken(rawTokenData);
   const userDetail = mapUserDetail(userTokenData);
-
-  if (tokenString && userDetail) {
-    apiClient.interceptors.request.use((config) => {
-      config.headers.Authorization = stringifyToken(userTokenData);
-      config.params = {
-        ...(config.params || {}),
-        _exp_Token: userDetail.PerExp_Token,
-        _PerWP_Token: userDetail.PerWP,
-        _PerRG_Token: userDetail.PerRG,
-        _PerST_Token: userDetail.PerST,
-      };
-
-      return config;
-    });
-  }
 
   return userDetail;
 }

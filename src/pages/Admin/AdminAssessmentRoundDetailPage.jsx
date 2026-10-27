@@ -17,6 +17,7 @@ import {
   Modal,
   Progress,
   Row,
+  Select,
   Space,
   Switch,
   Table,
@@ -27,14 +28,18 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PagePanel, { MetricCard } from "../components/PagePanel";
-import apiClient from "../../recoilstore/userStores";
+import apiClient, { getInitialUserDetail } from "../../recoilstore/userStores";
+import { buildAdminTokenPayload } from "../../utils/tokenUtils";
 
 const SUPERVISOR_PAGE_SIZE = 50;
+const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
+const ROUND_DETAIL_PAGE_API = "/api/insurances/getAssessmentRoundDetailPage";
 const initialSupervisorFilters = {
   employeeCode: "",
   employeeName: "",
   workplaceCode: "",
   workplaceName: "",
+  completionStatus: "",
 };
 
 function getCleanSupervisorFilters(filters = {}) {
@@ -43,7 +48,18 @@ function getCleanSupervisorFilters(filters = {}) {
     employeeName: String(filters.employeeName || "").trim(),
     workplaceCode: String(filters.workplaceCode || "").trim(),
     workplaceName: String(filters.workplaceName || "").trim(),
+    completionStatus: ["completed", "incomplete"].includes(filters.completionStatus)
+      ? filters.completionStatus
+      : "",
   };
+}
+
+function getEmployeePhotoUrl(photo) {
+  const fileName = String(photo || "").trim();
+
+  if (!fileName) return undefined;
+
+  return `${EMPLOYEE_PHOTO_URL}/${encodeURIComponent(fileName)}`;
 }
 
 function formatDateThai(date) {
@@ -63,6 +79,22 @@ function getPercent(value, total) {
   if (!total) return 0;
 
   return Math.round((value / total) * 100);
+}
+
+function toNumber(value, fallback = 0) {
+  const numberValue = Number(String(value ?? "").replace(/,/g, ""));
+
+  return Number.isNaN(numberValue) ? fallback : numberValue;
+}
+
+function getSubmittedCount(row = {}) {
+  return toNumber(
+    row.EVP_set_evaluators ??
+      row.EVP_Set_evaluators ??
+      row.EVP_SET_EVALUATORS ??
+      row.submitted,
+    0,
+  );
 }
 
 function getApiRoundData(data) {
@@ -106,6 +138,28 @@ function getApiPermissionTotal(data, rows = []) {
     data?.recordsTotal;
 
   return Number(total || rows.length || 0);
+}
+
+function getApiSummaryData(data) {
+  const result = data?.result ?? data;
+
+  return result?.summary || {};
+}
+
+function getApiSummaryValue(data, fieldNames = [], fallback = 0) {
+  const result = data?.result ?? data;
+  const summary = getApiSummaryData(data);
+
+  for (const fieldName of fieldNames) {
+    const value =
+      summary?.[fieldName] ?? result?.[fieldName] ?? data?.[fieldName];
+
+    if (value !== undefined && value !== null && value !== "") {
+      return toNumber(value);
+    }
+  }
+
+  return fallback;
 }
 
 function getRoundStatusFromApi(status) {
@@ -282,6 +336,13 @@ function mapPermissionRowsToSupervisors(rows = []) {
         row.EVP_PositionName || row.position_name || row.position || "-",
       department:
         row.EVP_WorkplaceName || row.workplace_name || row.department || "-",
+      EVP_Photo: row.EVP_Photo || "",
+      EVP_Number_evaluators: row.EVP_Number_evaluators || "",
+      EVP_set_evaluators:
+        row.EVP_set_evaluators ||
+        row.EVP_Set_evaluators ||
+        row.EVP_SET_EVALUATORS ||
+        "",
       workArea:
         row.EVP_WorkplaceCode || row.workplace_code || row.workArea || "-",
       startWorkDate: getStartWorkDate(row),
@@ -300,11 +361,29 @@ function mapPermissionRowsToSupervisors(rows = []) {
       current.EVP_Status = "0";
     }
 
-    current.totalEvaluators += Number(row.totalEvaluators || 1);
-    current.submitted += getSubmittedStatus(row) === "1" ? 1 : 0;
+    current.totalEvaluators = toNumber(
+      row.EVP_Number_evaluators ?? row.totalEvaluators,
+      current.totalEvaluators || 0,
+    );
+    current.EVP_Number_evaluators = row.EVP_Number_evaluators ?? current.totalEvaluators;
+    current.EVP_set_evaluators =
+      row.EVP_set_evaluators ??
+      row.EVP_Set_evaluators ??
+      row.EVP_SET_EVALUATORS ??
+      current.EVP_set_evaluators;
+    current.submitted = toNumber(
+      row.EVP_set_evaluators ??
+        row.EVP_Set_evaluators ??
+        row.EVP_SET_EVALUATORS ??
+        row.submitted,
+      getSubmittedStatus(row) === "1" ? 1 : 0,
+    );
     current.pending = Math.max(current.totalEvaluators - current.submitted, 0);
 
-    if (current.submitted === current.totalEvaluators) {
+    if (
+      current.totalEvaluators > 0 &&
+      current.submitted >= current.totalEvaluators
+    ) {
       current.status = "ประเมินครบ";
       current.statusColor = "success";
     } else if (current.submitted > 0) {
@@ -333,6 +412,9 @@ export default function AdminAssessmentRoundDetailPage() {
   const [selectedRound, setSelectedRound] = useState(null);
   const [roundSupervisors, setRoundSupervisors] = useState([]);
   const [supervisorTotal, setSupervisorTotal] = useState(0);
+  const [summaryTotalEvaluators, setSummaryTotalEvaluators] = useState(0);
+  const [summaryTotalSubmitted, setSummaryTotalSubmitted] = useState(0);
+  const [summaryCompleted, setSummaryCompleted] = useState(0);
   const [supervisorPage, setSupervisorPage] = useState(1);
   const [supervisorFilters, setSupervisorFilters] = useState(
     initialSupervisorFilters,
@@ -351,67 +433,83 @@ export default function AdminAssessmentRoundDetailPage() {
   const [addingEmployee, setAddingEmployee] = useState(false);
   const [loadingEmployeePreview, setLoadingEmployeePreview] = useState(false);
 
-  const fetchRoundDetail = useCallback(async () => {
+  const fetchRoundDetailPage = useCallback(async () => {
     setLoadingRound(true);
-
-    try {
-      const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundDetailSub",
-        {
-          params: {
-            EVC_Code: roundCode,
-          },
-        },
-      );
-      const apiRound = getApiRoundData(response.data);
-
-      setSelectedRound(mapApiRoundDetail(apiRound || {}, roundCode));
-    } catch (error) {
-      console.error(error);
-      setSelectedRound(mapApiRoundDetail({}, roundCode));
-      messageApi.warning("ดึงรายละเอียดรอบประเมินไม่สำเร็จ");
-    } finally {
-      setLoadingRound(false);
-    }
-  }, [messageApi, roundCode]);
-
-  const fetchRoundSupervisors = useCallback(async () => {
     setLoadingSupervisors(true);
 
     try {
       const filters = getCleanSupervisorFilters(activeSupervisorFilters);
-      const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermission",
-        {
-          params: {
-            EVC_Code: roundCode,
-            page: supervisorPage,
-            limit: SUPERVISOR_PAGE_SIZE,
-            ...(filters.employeeCode
-              ? { EVP_TargetID: filters.employeeCode }
-              : {}),
-            ...(filters.employeeName
-              ? { EVP_TargetName: filters.employeeName }
-              : {}),
-            ...(filters.workplaceCode
-              ? { EVP_WorkplaceCode: filters.workplaceCode }
-              : {}),
-            ...(filters.workplaceName
-              ? { EVP_WorkplaceName: filters.workplaceName }
-              : {}),
-          },
+      const response = await apiClient.get(ROUND_DETAIL_PAGE_API, {
+        params: {
+          EVC_Code: roundCode,
+          page: supervisorPage,
+          limit: SUPERVISOR_PAGE_SIZE,
+          ...(filters.employeeCode ? { EVP_TargetID: filters.employeeCode } : {}),
+          ...(filters.employeeName ? { EVP_TargetName: filters.employeeName } : {}),
+          ...(filters.workplaceCode
+            ? { EVP_WorkplaceCode: filters.workplaceCode }
+            : {}),
+          ...(filters.workplaceName
+            ? { EVP_WorkplaceName: filters.workplaceName }
+            : {}),
+          ...(filters.completionStatus
+            ? { completionStatus: filters.completionStatus }
+            : {}),
         },
-      );
+      });
+      const apiRound = getApiRoundData(response.data);
       const permissionRows = getApiPermissionRows(response.data);
+      const mappedSupervisors = mapPermissionRowsToSupervisors(permissionRows);
+      const pageTotalEvaluators = mappedSupervisors.reduce(
+        (sum, item) => sum + toNumber(item.EVP_Number_evaluators),
+        0,
+      );
+      const pageTotalSubmitted = mappedSupervisors.reduce(
+        (sum, item) => sum + getSubmittedCount(item),
+        0,
+      );
 
-      setRoundSupervisors(mapPermissionRowsToSupervisors(permissionRows));
+      setSelectedRound(mapApiRoundDetail(apiRound || {}, roundCode));
+      setRoundSupervisors(mappedSupervisors);
       setSupervisorTotal(getApiPermissionTotal(response.data, permissionRows));
+      setSummaryTotalEvaluators(
+        getApiSummaryValue(
+          response.data,
+          [
+            "totalEvaluators",
+            "total_evaluators",
+            "EVP_Number_evaluators_total",
+            "sumNumberEvaluators",
+          ],
+          pageTotalEvaluators,
+        ),
+      );
+      setSummaryTotalSubmitted(
+        getApiSummaryValue(
+          response.data,
+          [
+            "totalSubmitted",
+            "total_submitted",
+            "EVP_set_evaluators_total",
+            "sumSetEvaluators",
+          ],
+          pageTotalSubmitted,
+        ),
+      );
+      setSummaryCompleted(
+        getApiSummaryValue(response.data, ["completed", "totalCompleted"], 0),
+      );
     } catch (error) {
       console.error(error);
+      setSelectedRound(mapApiRoundDetail({}, roundCode));
       setRoundSupervisors([]);
       setSupervisorTotal(0);
-      messageApi.warning("ดึงรายชื่อหัวหน้าที่ถูกดึงเข้ารอบไม่สำเร็จ");
+      setSummaryTotalEvaluators(0);
+      setSummaryTotalSubmitted(0);
+      setSummaryCompleted(0);
+      messageApi.warning("ดึงรายละเอียดรอบประเมินไม่สำเร็จ");
     } finally {
+      setLoadingRound(false);
       setLoadingSupervisors(false);
     }
   }, [
@@ -423,16 +521,12 @@ export default function AdminAssessmentRoundDetailPage() {
   ]);
 
   useEffect(() => {
-    fetchRoundDetail();
-  }, [fetchRoundDetail]);
-
-  useEffect(() => {
     setSupervisorPage(1);
   }, [roundCode]);
 
   useEffect(() => {
-    fetchRoundSupervisors();
-  }, [fetchRoundSupervisors]);
+    fetchRoundDetailPage();
+  }, [fetchRoundDetailPage]);
 
   const handleSupervisorTableChange = (pagination) => {
     setSupervisorPage(pagination.current || 1);
@@ -537,18 +631,15 @@ export default function AdminAssessmentRoundDetailPage() {
         return true;
       }
 
-      const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermission",
-        {
-          params: {
-            EVC_Code: roundCode,
-            employeeCode,
-            EVP_TargetID: employeeCode,
-            page: 1,
-            limit: 1,
-          },
+      const response = await apiClient.get(ROUND_DETAIL_PAGE_API, {
+        params: {
+          EVC_Code: roundCode,
+          employeeCode,
+          EVP_TargetID: employeeCode,
+          page: 1,
+          limit: 1,
         },
-      );
+      });
       const permissionRows = getApiPermissionRows(response.data);
 
       return permissionRows.some((row) => isSameEmployee(row, employeeCode));
@@ -564,7 +655,6 @@ export default function AdminAssessmentRoundDetailPage() {
 
     try {
       const payload = {
-       
         EVC_Code: roundCode,
         EVP_TargetID: row.id,
         EVP_Status: nextStatus,
@@ -572,7 +662,6 @@ export default function AdminAssessmentRoundDetailPage() {
 
       // console.log(payload);
       // return
-
 
       const response = await apiClient.post(
         "/api/insurances/updateAssessmentRoundPermissionStatus",
@@ -585,7 +674,7 @@ export default function AdminAssessmentRoundDetailPage() {
       }
 
       messageApi.success(message || "อัปเดตสถานะพนักงานเรียบร้อยแล้ว");
-      fetchRoundSupervisors();
+      fetchRoundDetailPage();
     } catch (error) {
       console.error(error);
       messageApi.error(
@@ -633,6 +722,8 @@ export default function AdminAssessmentRoundDetailPage() {
         EVP_WorkplaceName: employeePreview?.departmentName,
         EVP_startworkdate_PSN: employeePreview?.startWorkDate,
         EVP_Status: "1",
+        idAdminNew: buildAdminTokenPayload(getInitialUserDetail() || {}).PerD,
+        PerTiNa: buildAdminTokenPayload(getInitialUserDetail() || {}).PerTiNa,
       };
 
       // console.log(payload);
@@ -652,7 +743,7 @@ export default function AdminAssessmentRoundDetailPage() {
 
       messageApi.success(message || "เพิ่มพนักงานเข้ารอบเรียบร้อยแล้ว");
       handleCloseAddEmployee();
-      fetchRoundSupervisors();
+      fetchRoundDetailPage();
     } catch (error) {
       if (error?.errorFields) return;
 
@@ -667,20 +758,12 @@ export default function AdminAssessmentRoundDetailPage() {
     }
   };
 
-  const totalEvaluators = roundSupervisors.reduce(
-    (sum, item) => sum + item.totalEvaluators,
-    0,
-  );
-  const totalSubmitted = roundSupervisors.reduce(
-    (sum, item) => sum + item.submitted,
-    0,
-  );
+  const totalEvaluators = summaryTotalEvaluators;
+  const totalSubmitted = summaryTotalSubmitted;
   const percent = totalEvaluators
     ? getPercent(totalSubmitted, totalEvaluators)
     : 0;
-  const completed = roundSupervisors.filter(
-    (item) => item.pending === 0,
-  ).length;
+  const completed = summaryCompleted;
 
   const columns = [
     {
@@ -697,26 +780,38 @@ export default function AdminAssessmentRoundDetailPage() {
     {
       title: "หัวหน้าที่ถูกประเมิน",
       key: "supervisor",
-      render: (_, row) => (
+      render: (_, row) => {
+        const photoUrl = getEmployeePhotoUrl(row.EVP_Photo);
+
+        return (
         <Space size={12}>
-          <Avatar className="supervisor-avatar" icon={<UserOutlined />} />
+          <Avatar
+            className="supervisor-avatar"
+            size={56}
+            src={photoUrl}
+            icon={!photoUrl ? <UserOutlined /> : undefined}
+          />
+
           <div>
             <Typography.Text strong>{row.name}</Typography.Text>
+
             <div>
               <Typography.Text type="secondary">
                 รหัสพนักงาน {row.employeeCode || row.id || "-"}
               </Typography.Text>
             </div>
+
             <div>
               <Typography.Text type="secondary">{row.position}</Typography.Text>
             </div>
           </div>
         </Space>
-      ),
+        );
+      },
     },
 
     {
-      title: "ฝ่าย/พื้นที่ ณ รอบนี้",
+      title: "ฝ่าย/พื้นที่",
       key: "area",
       render: (_, row) => (
         <div>
@@ -730,7 +825,7 @@ export default function AdminAssessmentRoundDetailPage() {
     {
       title: "อายุงาน",
       key: "workAge",
-      width: 140,
+      width: 110,
       render: (_, row) => (
         <Typography.Text>{getWorkAge(row.startWorkDate)}</Typography.Text>
       ),
@@ -740,18 +835,27 @@ export default function AdminAssessmentRoundDetailPage() {
       dataIndex: "totalEvaluators",
       key: "totalEvaluators",
       align: "center",
-      render: (total) => <Typography.Text>{total} คน</Typography.Text>,
+       render: (_, row) => (
+        <div>
+          <Typography.Text>{row.EVP_Number_evaluators}</Typography.Text>
+         
+        </div>
+      ),
+    
     },
     {
       title: "ส่งแล้ว",
-      dataIndex: "submitted",
+      dataIndex: "EVP_set_evaluators",
       key: "submitted",
       align: "center",
-      render: (submitted) => <Typography.Text>{submitted} คน</Typography.Text>,
+      render: (_, row) => (
+        <Typography.Text>{getSubmittedCount(row)} คน</Typography.Text>
+      ),
     },
     {
       title: "ความคืบหน้า",
       key: "progress",
+      
       render: (_, row) => {
         const rowPercent = row.totalEvaluators
           ? getPercent(row.submitted, row.totalEvaluators)
@@ -770,24 +874,31 @@ export default function AdminAssessmentRoundDetailPage() {
     {
       title: "สถานะการประเมิน",
       key: "status",
-      render: (_, row) => <Tag color={row.statusColor}>{row.status}</Tag>,
+      render: (_, row) => {
+        const evaluatorCount = toNumber(row.EVP_Number_evaluators);
+        const submittedCount = toNumber(row.EVP_set_evaluators);
+
+        if (evaluatorCount === 0 && submittedCount === 0) {
+          return <Tag color="default">ไม่มีผู้ประเมิน</Tag>;
+        }
+
+        return <Tag color={row.statusColor}>{row.status}</Tag>;
+      },
     },
     {
       title: "สถานะสิทธิ์",
       key: "permissionStatus",
       align: "center",
-      width: 130,
+      width: 60,
       render: (_, row) => (
-        <Tag color={row.permissionStatusColor}>
-          {row.permissionStatusText}
-        </Tag>
+        <Tag color={row.permissionStatusColor}>{row.permissionStatusText}</Tag>
       ),
     },
     {
       title: "จัดการ",
       key: "action",
       align: "center",
-      width: 150,
+      width: 20,
       render: (_, row) => (
         <Switch
           checked={isPermissionOpen(row.EVP_Status)}
@@ -832,7 +943,7 @@ export default function AdminAssessmentRoundDetailPage() {
         </div>
       </Card>
 
-      <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]} className="round-detail-summary-row">
         <Col xs={24} md={6}>
           <MetricCard
             label="หัวหน้าถูกประเมิน"
@@ -934,6 +1045,21 @@ export default function AdminAssessmentRoundDetailPage() {
                     )
                   }
                   onPressEnter={handleSearchSupervisors}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={4}>
+                <Select
+                  allowClear
+                  placeholder="กรองสถานะการประเมิน"
+                  value={supervisorFilters.completionStatus || undefined}
+                  options={[
+                    { value: "completed", label: "ประเมินครบ" },
+                    { value: "incomplete", label: "ประเมินไม่ครบ" },
+                  ]}
+                  onChange={(value) =>
+                    handleSupervisorFilterChange("completionStatus", value || "")
+                  }
+                  style={{ width: "100%" }}
                 />
               </Col>
               <Col xs={24} sm={12} lg={4}>

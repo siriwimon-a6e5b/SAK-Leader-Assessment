@@ -32,7 +32,6 @@ import { useNavigate } from "react-router-dom";
 import PagePanel, { MetricCard } from "../components/PagePanel";
 import apiClient, { getInitialUserDetail } from "../../recoilstore/userStores";
 import { buildAdminTokenPayload } from "../../utils/tokenUtils";
-import { supervisorRows } from "./adminAssessmentData";
 
 dayjs.extend(buddhistEra);
 dayjs.locale("th");
@@ -173,21 +172,6 @@ function getEditFormLabel(form, editingRound) {
   return form.LAF_Name || String(form.LAF_ID || "");
 }
 
-function getRoundSummary(roundId) {
-  const rows = supervisorRows.filter((item) => item.roundId === roundId);
-  const totalEvaluators = rows.reduce(
-    (sum, item) => sum + item.totalEvaluators,
-    0,
-  );
-  const submitted = rows.reduce((sum, item) => sum + item.submitted, 0);
-
-  return {
-    supervisors: rows.length,
-    totalEvaluators,
-    submitted,
-  };
-}
-
 // function countFormQuestions(form) {
 //   if (form.questionCount || form.question_count) {
 //     return Number(form.questionCount || form.question_count);
@@ -233,6 +217,21 @@ function getRoundStatus(checked) {
     : { status: "closed", statusText: "ปิดรอบ", statusColor: "default" };
 }
 
+function shouldAutoCloseRound(round) {
+  if (round.status !== "open" || !round.endDate) return false;
+
+  const automaticCloseAt = dayjs(
+    `${String(round.endDate).slice(0, 10)} 16:30:00`,
+  );
+  if (!automaticCloseAt.isValid() || dayjs().isBefore(automaticCloseAt)) {
+    return false;
+  }
+
+  const updatedAt = dayjs(round.updatedAt);
+
+  return !updatedAt.isValid() || updatedAt.isBefore(automaticCloseAt);
+}
+
 function buildCreateRoundPayload(
   values,
   adminToken,
@@ -257,6 +256,7 @@ function buildCreateRoundPayload(
     EVC_StartDate: formatDateForApi(values.startDate),
     EVC_EndDate: formatDateForApi(values.endDate),
     EVC_IdPerCreatedBy: adminToken.PerD,
+    PerTiNa: adminToken.PerTiNa,
   };
 }
 
@@ -287,6 +287,7 @@ function buildUpdateRoundPayload(
     EVC_StartDate: formatDateForApi(values.startDate),
     EVC_EndDate: formatDateForApi(values.endDate),
     EVC_IdPerUpdatedBy: adminToken.PerD,
+    PerTiNa: adminToken.PerTiNa,
   };
 }
 
@@ -370,6 +371,11 @@ function formatRoundLabel(value, year) {
 
 function mapCreatedRoundFromApi(result = {}, values = {}) {
   const round = Array.isArray(result) ? result[0] || {} : result;
+  const endDate =
+    round.EVC_EndDate ||
+    round.LAR_EndDate ||
+    round.end_date ||
+    values.endDate;
 
   return {
     id: round.EVC_ID || round.LAR_ID || round.round_id || values.id,
@@ -390,11 +396,7 @@ function mapCreatedRoundFromApi(result = {}, values = {}) {
       round.LAR_StartDate ||
       round.start_date ||
       values.startDate,
-    endDate:
-      round.EVC_EndDate ||
-      round.LAR_EndDate ||
-      round.end_date ||
-      values.endDate,
+    endDate,
     ...getRoundStatusFromApi(round.EVC_Status ?? round.LAR_Status),
     assessmentType:
       round.EVT_ID ||
@@ -412,7 +414,13 @@ function mapCreatedRoundFromApi(result = {}, values = {}) {
       round.LAR_CreatedAt ||
       round.created_at ||
       new Date().toISOString(),
+    updatedAt:
+      round.EVC_UpdatedAt ||
+      round.LAR_UpdatedAt ||
+      round.updated_at ||
+      null,
     snapshotSupervisorCount: Number(round.target_count || 0),
+    completedSupervisorCount: Number(round.completed_target_count || 0),
   };
 }
 
@@ -559,8 +567,34 @@ export default function AdminAssessmentRoundsPage() {
       );
       const roundList = getApiRoundList(response.data);
       const apiRounds = roundList.map((item) => mapCreatedRoundFromApi(item));
+      const roundsToAutoClose = apiRounds.filter(shouldAutoCloseRound);
+      const closeResults = await Promise.allSettled(
+        roundsToAutoClose.map((round) =>
+          apiClient.post("/api/insurances/updateAssessmentRoundStatus", {
+            EVC_ID: round.id,
+            EVC_Status: "0",
+            EVC_IdPerUpdatedBy: adminToken.PerD,
+            PerTiNa: adminToken.PerTiNa,
+          }),
+        ),
+      );
+      const autoClosedRoundIds = new Set(
+        roundsToAutoClose
+          .filter((_, index) => closeResults[index]?.status === "fulfilled")
+          .map((round) => round.id),
+      );
 
-      setRounds(apiRounds);
+      setRounds(
+        apiRounds.map((round) =>
+          autoClosedRoundIds.has(round.id)
+            ? {
+                ...round,
+                ...getRoundStatus(false),
+                updatedAt: new Date().toISOString(),
+              }
+            : round,
+        ),
+      );
     } catch (error) {
       console.error(error);
       setRounds([]);
@@ -568,13 +602,19 @@ export default function AdminAssessmentRoundsPage() {
     } finally {
       setLoadingRounds(false);
     }
-  }, [messageApi]);
+  }, [adminToken.PerD, adminToken.PerTiNa, messageApi]);
 
   useEffect(() => {
     fetchAssessmentTypes();
     fetchAssessmentForms();
     fetchAssessmentRounds();
   }, [fetchAssessmentForms, fetchAssessmentRounds, fetchAssessmentTypes]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(fetchAssessmentRounds, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, [fetchAssessmentRounds]);
 
   const summary = useMemo(() => {
     const openRounds = rounds.filter((item) => item.status === "open").length;
@@ -593,6 +633,7 @@ export default function AdminAssessmentRoundsPage() {
   };
 
   const handleCreateRound = async () => {
+    if (creatingRound) return;
     try {
       const values = await form.validateFields();
       const payload = buildCreateRoundPayload(
@@ -680,6 +721,7 @@ export default function AdminAssessmentRoundsPage() {
         EVC_ID: roundId,
         EVC_Status: nextStatus,
         EVC_IdPerUpdatedBy: adminToken.PerD,
+        PerTiNa: adminToken.PerTiNa,
       };
 
       // console.log(payload);
@@ -840,10 +882,10 @@ export default function AdminAssessmentRoundsPage() {
     {
       title: "แบบประเมินที่ใช้",
       key: "form",
-      width: 230,
+      width: 250,
       render: (_, row) => (
         <Space orientation="vertical" size={2}>
-          <Tag color="blue">
+          <Tag color={normalizeAssessmentType(row.assessmentType) === "collaboration" ? "cyan" : "blue"}>
             {row.assessmentTypeName ||
               getAssessmentTypeLabel(row.assessmentType, assessmentTypeOptions)}
           </Tag>
@@ -851,6 +893,12 @@ export default function AdminAssessmentRoundsPage() {
             <FileTextOutlined className="round-table-icon" />
             <Typography.Text>
               {row.formName || getFormName(row.formId, forms)}
+            </Typography.Text>
+          </Space>
+          <Space size={8}>
+            <FileTextOutlined className="round-table-icon" />
+            <Typography.Text type="secondary">
+              {row.EVC_Code || "-"}
             </Typography.Text>
           </Space>
         </Space>
@@ -870,31 +918,21 @@ export default function AdminAssessmentRoundsPage() {
       title: "หัวหน้า",
       key: "supervisors",
       align: "center",
-      render: (_, row) => {
-        const roundSummary = getRoundSummary(row.id);
-        const supervisorCount =
-          roundSummary.supervisors ||
-          row.snapshotTargets?.length ||
-          row.snapshotSupervisorCount ||
-          0;
-
-        return <Typography.Text>{supervisorCount} คน</Typography.Text>;
-      },
+      render: (_, row) => (
+        <Typography.Text>{Number(row.snapshotSupervisorCount || 0).toLocaleString("en-US")} คน</Typography.Text>
+      ),
     },
     {
-      title: "ส่งแล้ว",
+      title: "ประเมินครบ",
       key: "submitted",
       align: "center",
       width: 100,
-      render: (_, row) => {
-        const roundSummary = getRoundSummary(row.id);
-
-        return (
-          <Typography.Text>
-            {roundSummary.submitted}/{roundSummary.totalEvaluators || 0}
-          </Typography.Text>
-        );
-      },
+      render: (_, row) => (
+        <Typography.Text>
+          {Number(row.completedSupervisorCount || 0).toLocaleString("en-US")}/
+          {Number(row.snapshotSupervisorCount || 0).toLocaleString("en-US")}
+        </Typography.Text>
+      ),
     },
     {
       title: "สถานะ",

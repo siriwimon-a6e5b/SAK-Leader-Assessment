@@ -1,14 +1,68 @@
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Card, Col, Row, Space, Typography } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+
+export function getSafeBackPath(pathname = "", search = "") {
+  const params = new URLSearchParams(search);
+  const roundCode = params.get("EVC_Code");
+  const fromPage = params.get("from");
+  const roundSearch = roundCode
+    ? `?EVC_Code=${encodeURIComponent(roundCode)}`
+    : "";
+
+  if (pathname.startsWith("/User_Assess_Supervisor_Form")) {
+    if (fromPage === "history") {
+      return "/User_out";
+    }
+
+    return `/User_Assess_Supervisor${roundSearch}`;
+  }
+
+  if (
+    pathname.startsWith("/User_Assess_Supervisor") ||
+    pathname.startsWith("/User_Assess_Transferred_Supervisor") ||
+    pathname.startsWith("/User_Assess_Peer") ||
+    pathname.startsWith("/User_out") ||
+    pathname.startsWith("/Leader_Check") ||
+    pathname.startsWith("/Manager_Check")
+  ) {
+    return "/User_Check";
+  }
+
+  if (pathname.startsWith("/Admin_Assessment_Rounds/")) {
+    return "/Admin_Assessment_Rounds";
+  }
+
+  if (pathname.startsWith("/Admin_Check/")) {
+    if (fromPage === "supervisor-profile") {
+      const employeeCode = pathname.slice("/Admin_Check/".length).split("/")[0];
+      if (employeeCode) return `/Admin_Supervisor_Profile/${employeeCode}`;
+    }
+
+    return "/Admin_Check";
+  }
+
+  if (pathname.startsWith("/Admin_Supervisor_Profile/")) {
+    return "/Admin_Supervisor_Profile";
+  }
+
+  if (pathname.startsWith("/Admin")) {
+    return "/Admin_Check";
+  }
+
+  return "/";
+}
 
 export function PageHeader({ eyebrow, title, description, action }) {
   return (
     <div className="page-heading">
-      <div>
-        {eyebrow ? <Typography.Text className="access-eyebrow">{eyebrow}</Typography.Text> : null}
-        <Typography.Title level={2}>{title}</Typography.Title>
-        {description ? <Typography.Paragraph>{description}</Typography.Paragraph> : null}
+      <div className="page-heading-main">
+        <div className="page-heading-marker" />
+        <div>
+          {eyebrow ? <Typography.Text className="access-eyebrow">{eyebrow}</Typography.Text> : null}
+          <Typography.Title level={2}>{title}</Typography.Title>
+          {description ? <Typography.Paragraph>{description}</Typography.Paragraph> : null}
+        </div>
       </div>
       {action ? <div className="page-heading-action">{action}</div> : null}
     </div>
@@ -47,16 +101,25 @@ export default function PagePanel({
   children,
   action,
   showBack = true,
+  onBack,
   className = "",
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+      return;
+    }
+    navigate(getSafeBackPath(location.pathname, location.search));
+  };
   const pageAction =
     action ||
     (showBack ? (
       <Button
         className="page-back-button"
         icon={<ArrowLeftOutlined />}
-        onClick={() => navigate(-1)}
+        onClick={handleBack}
       >
         กลับ
       </Button>

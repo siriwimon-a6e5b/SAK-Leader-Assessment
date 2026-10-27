@@ -7,7 +7,7 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { Alert, Avatar, Button, Card, Col, Row, Space, Tag, Typography } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import PagePanel, { MetricCard } from "../components/PagePanel";
 
 const transferredSupervisors = [
@@ -27,6 +27,10 @@ const transferredSupervisors = [
 
 export default function TransferredSupervisorAssessmentPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const roundCode = location.state?.EVC_Code || searchParams.get("EVC_Code") || "";
+  const roundPeriod = location.state?.EVC_Period || "";
 
   return (
     <PagePanel
@@ -63,7 +67,7 @@ export default function TransferredSupervisorAssessmentPage() {
           {transferredSupervisors.map((supervisor) => (
             <div className="supervisor-list-item" key={supervisor.id}>
               <div className="supervisor-profile">
-                <Avatar className="supervisor-avatar" size={48} icon={<UserOutlined />} />
+                <Avatar className="supervisor-avatar" size={56} icon={<UserOutlined />} />
                 <div className="supervisor-copy">
                   <Space size={8} wrap>
                     <Typography.Text strong>{supervisor.name}</Typography.Text>
@@ -97,9 +101,20 @@ export default function TransferredSupervisorAssessmentPage() {
               <Button
                 type="primary"
                 icon={<CheckCircleOutlined />}
-                onClick={() =>
-                  navigate(`/User_Assess_Supervisor_Form/${supervisor.id}`)
-                }
+                onClick={() => {
+                  const nextPath = roundCode
+                    ? `/User_Assess_Supervisor_Form/${
+                        supervisor.id
+                      }?EVC_Code=${encodeURIComponent(roundCode)}`
+                    : `/User_Assess_Supervisor_Form/${supervisor.id}`;
+
+                  navigate(nextPath, {
+                    state: {
+                      EVC_Code: roundCode,
+                      EVC_Period: roundPeriod,
+                    },
+                  });
+                }}
               >
                 ประเมิน
               </Button>

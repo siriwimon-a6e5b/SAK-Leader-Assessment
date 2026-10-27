@@ -26,6 +26,8 @@ function isAllowedForUserLevel(route, userLevel) {
 function filterRoutesByAccess(routes, options = {}) {
   return routes
     .filter((route) => isAllowedForUserLevel(route, options.userLevel))
+    .filter((route) => !route.requiresOwnResults || options.canViewOwnResults === true)
+    .filter((route) => !route.requiresRegionalScores || options.canViewRegionalScores === true)
     .map((route) => ({
       ...route,
       children: route.children
