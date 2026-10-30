@@ -7,15 +7,27 @@ function preferenceKey(token) {
 }
 
 export function canSwitchRole(token) {
-  if (!token || getRoleFromToken(token).role !== "admin") return false;
-  return appConfig.auth.roleSwitchEmployeeIds.includes(readTokenValue(token.PerD));
+  if (!token) return false;
+
+  const access = getRoleFromToken(token);
+  const employeeId = readTokenValue(token.PerD);
+  const workplaceCode = readTokenValue(token.PerWP);
+  const isAllowedEmployee = appConfig.auth.roleSwitchEmployeeIds.includes(employeeId);
+  const isAllowedWorkplace = appConfig.auth.roleSwitchWorkplaceCodes.includes(workplaceCode);
+
+  return access.role === "admin" || isAllowedEmployee || isAllowedWorkplace;
 }
 
 export function getEffectiveRole(token) {
   const access = getRoleFromToken(token);
-  if (canSwitchRole(token) && sessionStorage.getItem(preferenceKey(token)) === "user") {
-    return { ...access, role: "user" };
+  if (canSwitchRole(token)) {
+    const selectedRole = sessionStorage.getItem(preferenceKey(token));
+
+    if (["admin", "user"].includes(selectedRole)) {
+      return { ...access, role: selectedRole };
+    }
   }
+
   return access;
 }
 

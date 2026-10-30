@@ -27,6 +27,28 @@ export default function AuthGuard() {
   );
 
   useEffect(() => {
+    let expiryTimeoutId;
+
+    const scheduleExpiryCheck = (nextToken) => {
+      window.clearTimeout(expiryTimeoutId);
+      const expiresAt = Number(nextToken?.PerExp_Token) * 1000;
+      const delay = expiresAt - Date.now();
+
+      if (!Number.isFinite(delay) || delay <= 0) return;
+
+      const maximumDelay = 2_147_483_647;
+      expiryTimeoutId = window.setTimeout(() => {
+        if (delay > maximumDelay) {
+          scheduleExpiryCheck(nextToken);
+          return;
+        }
+
+        // Re-read the token once at its actual expiry time so the access check
+        // below can display the existing expiry message.
+        setToken(getInitialUserDetail());
+      }, Math.min(delay, maximumDelay));
+    };
+
     const syncToken = (force = false) => {
       const nextTokenKey = getTokenStorageKey(location.search);
 
@@ -34,7 +56,9 @@ export default function AuthGuard() {
 
       lastTokenKey.current = nextTokenKey;
       setLoading(true);
-      setToken(getInitialUserDetail());
+      const nextToken = getInitialUserDetail();
+      setToken(nextToken);
+      scheduleExpiryCheck(nextToken);
     };
 
     syncToken(true);
@@ -51,12 +75,10 @@ export default function AuthGuard() {
     window.addEventListener("focus", handleFocus);
     window.addEventListener("storage", handleStorage);
 
-    const intervalId = window.setInterval(syncToken, 1000);
-
     return () => {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("storage", handleStorage);
-      window.clearInterval(intervalId);
+      window.clearTimeout(expiryTimeoutId);
     };
   }, [location.search]);
 

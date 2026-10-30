@@ -20,6 +20,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tabs,
   Typography,
   message,
 } from "antd";
@@ -186,8 +187,13 @@ function getEditFormLabel(form, editingRound) {
 // }
 
 function getRoundOrderValue(round) {
-  if (round.activatedAt) return new Date(round.activatedAt).getTime();
-  if (round.createdAt) return new Date(round.createdAt).getTime();
+  // EVC_ID เป็น auto increment จึงใช้ระบุรอบที่สร้างล่าสุดได้
+  // เมื่อฐานข้อมูลเดิมไม่มีคอลัมน์วันเวลาที่สร้าง
+  const numericId = Number(round.EVC_ID || round.id);
+  if (Number.isFinite(numericId)) return numericId;
+
+  const createdAt = dayjs(round.createdAt);
+  if (createdAt.isValid()) return createdAt.valueOf();
 
   const year = Number(round.year || round.label?.match(/\d{4}/)?.[0] || 0);
   const month = Number(round.label?.match(/เดือน\s*(\d+)/)?.[1] || 12);
@@ -215,21 +221,6 @@ function getRoundStatus(checked) {
   return checked
     ? { status: "open", statusText: "เปิดใช้งาน", statusColor: "processing" }
     : { status: "closed", statusText: "ปิดรอบ", statusColor: "default" };
-}
-
-function shouldAutoCloseRound(round) {
-  if (round.status !== "open" || !round.endDate) return false;
-
-  const automaticCloseAt = dayjs(
-    `${String(round.endDate).slice(0, 10)} 16:30:00`,
-  );
-  if (!automaticCloseAt.isValid() || dayjs().isBefore(automaticCloseAt)) {
-    return false;
-  }
-
-  const updatedAt = dayjs(round.updatedAt);
-
-  return !updatedAt.isValid() || updatedAt.isBefore(automaticCloseAt);
 }
 
 function buildCreateRoundPayload(
@@ -411,9 +402,13 @@ function mapCreatedRoundFromApi(result = {}, values = {}) {
     formName: round.LAF_Name || "",
     createdAt:
       round.EVC_CreatedAt ||
+      round.EVC_CreateDate ||
+      round.EVC_DateCreated ||
+      round.EVC_CreateAt ||
       round.LAR_CreatedAt ||
       round.created_at ||
-      new Date().toISOString(),
+      round.date_created ||
+      null,
     updatedAt:
       round.EVC_UpdatedAt ||
       round.LAR_UpdatedAt ||
@@ -421,6 +416,9 @@ function mapCreatedRoundFromApi(result = {}, values = {}) {
       null,
     snapshotSupervisorCount: Number(round.target_count || 0),
     completedSupervisorCount: Number(round.completed_target_count || 0),
+    submittedEvaluationCount: Number(
+      round.submitted_evaluation_count || round.submitted_count || 0,
+    ),
   };
 }
 
@@ -446,7 +444,11 @@ export default function AdminAssessmentRoundsPage() {
   const [forms, setForms] = useState([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [rounds, setRounds] = useState([]);
+  const [completedRounds, setCompletedRounds] = useState([]);
   const [loadingRounds, setLoadingRounds] = useState(false);
+  const [loadingCompletedRounds, setLoadingCompletedRounds] = useState(false);
+  const [hasLoadedCompletedRounds, setHasLoadedCompletedRounds] = useState(false);
+  const [roundTab, setRoundTab] = useState("active");
   const [updatingRoundId, setUpdatingRoundId] = useState(null);
   const [loadingEditRoundId, setLoadingEditRoundId] = useState(null);
   const [savingEditRound, setSavingEditRound] = useState(false);
@@ -509,22 +511,27 @@ export default function AdminAssessmentRoundsPage() {
   ]);
   const sortedRounds = useMemo(
     () =>
-      [...rounds].sort((left, right) => {
-        const statusWeight =
-          Number(right.status === "open") - Number(left.status === "open");
-        if (statusWeight !== 0) return statusWeight;
-
-        return getRoundOrderValue(right) - getRoundOrderValue(left);
-      }),
+      [...rounds].sort(
+        (left, right) =>
+          getRoundOrderValue(right) - getRoundOrderValue(left),
+      ),
     [rounds],
+  );
+  const sortedCompletedRounds = useMemo(
+    () =>
+      [...completedRounds].sort(
+        (left, right) =>
+          getRoundOrderValue(right) - getRoundOrderValue(left),
+      ),
+    [completedRounds],
   );
   const latestRoundId = sortedRounds[0]?.id;
 
-  const fetchAssessmentTypes = useCallback(async () => {
+  const fetchAssessmentTypes = useCallback(async (signal) => {
     setLoadingAssessmentTypes(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getAssessmentType");
+      const response = await apiClient.get("/api/insurances/getAssessmentType", { signal });
       const typeList = getApiAssessmentTypeList(response.data);
       const options = typeList
         .map(mapApiAssessmentType)
@@ -532,89 +539,94 @@ export default function AdminAssessmentRoundsPage() {
 
       setAssessmentTypeOptions(options);
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
       setAssessmentTypeOptions([]);
       messageApi.error("โหลดประเภทการประเมินไม่สำเร็จ");
     } finally {
-      setLoadingAssessmentTypes(false);
+      if (!signal?.aborted) setLoadingAssessmentTypes(false);
     }
   }, [messageApi]);
 
-  const fetchAssessmentForms = useCallback(async () => {
+  const fetchAssessmentForms = useCallback(async (signal) => {
     setLoadingForms(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getFormSub");
+      const response = await apiClient.get("/api/insurances/getFormSub", { signal });
       const { result = [] } = response.data || {};
       const apiForms = Array.isArray(result) ? result : [];
       // console.log(result)
       setForms(apiForms);
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
       setForms([]);
       messageApi.error("โหลดแบบฟอร์มประเมินไม่สำเร็จ");
     } finally {
-      setLoadingForms(false);
+      if (!signal?.aborted) setLoadingForms(false);
     }
   }, [messageApi]);
 
-  const fetchAssessmentRounds = useCallback(async () => {
+  const fetchAssessmentRounds = useCallback(async (signal) => {
     setLoadingRounds(true);
 
     try {
       const response = await apiClient.get(
         "/api/insurances/getAssessmentRound",
+        { signal, params: { view: "active" } },
       );
       const roundList = getApiRoundList(response.data);
       const apiRounds = roundList.map((item) => mapCreatedRoundFromApi(item));
-      const roundsToAutoClose = apiRounds.filter(shouldAutoCloseRound);
-      const closeResults = await Promise.allSettled(
-        roundsToAutoClose.map((round) =>
-          apiClient.post("/api/insurances/updateAssessmentRoundStatus", {
-            EVC_ID: round.id,
-            EVC_Status: "0",
-            EVC_IdPerUpdatedBy: adminToken.PerD,
-            PerTiNa: adminToken.PerTiNa,
-          }),
-        ),
-      );
-      const autoClosedRoundIds = new Set(
-        roundsToAutoClose
-          .filter((_, index) => closeResults[index]?.status === "fulfilled")
-          .map((round) => round.id),
-      );
 
-      setRounds(
-        apiRounds.map((round) =>
-          autoClosedRoundIds.has(round.id)
-            ? {
-                ...round,
-                ...getRoundStatus(false),
-                updatedAt: new Date().toISOString(),
-              }
-            : round,
-        ),
-      );
+      setRounds(apiRounds);
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
       setRounds([]);
       messageApi.error("โหลดรายการรอบประเมินไม่สำเร็จ");
     } finally {
-      setLoadingRounds(false);
+      if (!signal?.aborted) setLoadingRounds(false);
     }
-  }, [adminToken.PerD, adminToken.PerTiNa, messageApi]);
+  }, [messageApi]);
+
+  const fetchCompletedAssessmentRounds = useCallback(async () => {
+    setLoadingCompletedRounds(true);
+
+    try {
+      const response = await apiClient.get(
+        "/api/insurances/getAssessmentRound",
+        { params: { view: "completed" } },
+      );
+      const roundList = getApiRoundList(response.data);
+
+      setCompletedRounds(roundList.map((item) => mapCreatedRoundFromApi(item)));
+      setHasLoadedCompletedRounds(true);
+    } catch (error) {
+      console.error(error);
+      messageApi.error("โหลดรอบประเมินที่เสร็จสิ้นแล้วไม่สำเร็จ");
+    } finally {
+      setLoadingCompletedRounds(false);
+    }
+  }, [messageApi]);
+
+  const handleRoundTabChange = (key) => {
+    setRoundTab(key);
+
+    // โหลดรายการเสร็จสิ้นเมื่อผู้ใช้เปิดแท็บเท่านั้น และโหลดใหม่ทุกครั้ง
+    // เพื่อให้เห็นรอบที่เพิ่งปิดโดยไม่ต้องรีเฟรชทั้งหน้า
+    if (key === "completed") {
+      fetchCompletedAssessmentRounds();
+    }
+  };
 
   useEffect(() => {
-    fetchAssessmentTypes();
-    fetchAssessmentForms();
-    fetchAssessmentRounds();
+    const controller = new AbortController();
+    fetchAssessmentTypes(controller.signal);
+    fetchAssessmentForms(controller.signal);
+    fetchAssessmentRounds(controller.signal);
+
+    return () => controller.abort();
   }, [fetchAssessmentForms, fetchAssessmentRounds, fetchAssessmentTypes]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(fetchAssessmentRounds, 30000);
-
-    return () => window.clearInterval(intervalId);
-  }, [fetchAssessmentRounds]);
 
   const summary = useMemo(() => {
     const openRounds = rounds.filter((item) => item.status === "open").length;
@@ -630,6 +642,10 @@ export default function AdminAssessmentRoundsPage() {
 
   const updateRounds = (updater) => {
     setRounds((current) => updater(current));
+  };
+
+  const updateCompletedRounds = (updater) => {
+    setCompletedRounds((current) => updater(current));
   };
 
   const handleCreateRound = async () => {
@@ -664,6 +680,7 @@ export default function AdminAssessmentRoundsPage() {
       }
 
       await fetchAssessmentRounds();
+      setHasLoadedCompletedRounds(false);
       setOpenCreate(false);
       form.resetFields();
       messageApi.success(
@@ -698,9 +715,11 @@ export default function AdminAssessmentRoundsPage() {
 
   const handleToggleRound = async (roundId, checked) => {
     const nextStatus = checked ? "1" : "0";
-    const targetRound = rounds.find((item) => item.id === roundId);
+    const targetRound =
+      rounds.find((item) => item.id === roundId) ||
+      completedRounds.find((item) => item.id === roundId);
 
-    updateRounds((current) =>
+    const applyOptimisticStatus = (current) =>
       current.map((round) =>
         round.id === roundId
           ? {
@@ -711,8 +730,10 @@ export default function AdminAssessmentRoundsPage() {
                 : round.activatedAt,
             }
           : round,
-      ),
-    );
+      );
+
+    updateRounds(applyOptimisticStatus);
+    updateCompletedRounds(applyOptimisticStatus);
 
     setUpdatingRoundId(roundId);
 
@@ -741,9 +762,15 @@ export default function AdminAssessmentRoundsPage() {
         getDisplayMessage(message, "อัปเดตสถานะรอบประเมินเรียบร้อยแล้ว"),
       );
       await fetchAssessmentRounds();
+      if (hasLoadedCompletedRounds) {
+        await fetchCompletedAssessmentRounds();
+      }
     } catch (error) {
       if (targetRound) {
         updateRounds((current) =>
+          current.map((round) => (round.id === roundId ? targetRound : round)),
+        );
+        updateCompletedRounds((current) =>
           current.map((round) => (round.id === roundId ? targetRound : round)),
         );
       } else {
@@ -872,7 +899,12 @@ export default function AdminAssessmentRoundsPage() {
       key: "round",
       render: (_, row) => (
         <div>
-          <Typography.Text strong>{row.label}</Typography.Text>
+          <Space size={8} wrap>
+            <Typography.Text strong>{row.label}</Typography.Text>
+            {row.id === latestRoundId ? (
+              <Tag color="purple">เพิ่งสร้างล่าสุด</Tag>
+            ) : null}
+          </Space>
           <div>
             <Typography.Text type="secondary">{row.detail}</Typography.Text>
           </div>
@@ -938,12 +970,20 @@ export default function AdminAssessmentRoundsPage() {
       title: "สถานะ",
       key: "status",
       width: 150,
-      render: (_, row) => (
-        <Space wrap>
-          <Tag color={row.statusColor}>{row.statusText}</Tag>
-          {row.id === latestRoundId ? <Tag color="blue">ล่าสุด</Tag> : null}
-        </Space>
-      ),
+      render: (_, row) => {
+        const isCompleted =
+          row.status === "closed" &&
+          (row.submittedEvaluationCount > 0 ||
+            row.completedSupervisorCount > 0);
+
+        return (
+          <Space wrap>
+            <Tag color={isCompleted ? "success" : row.statusColor}>
+              {isCompleted ? "เสร็จสิ้นแล้ว" : row.statusText}
+            </Tag>
+          </Space>
+        );
+      },
     },
     {
       title: "เปิดใช้งาน",
@@ -1025,13 +1065,64 @@ export default function AdminAssessmentRoundsPage() {
             title="รายการรอบประเมิน"
             variant="outlined"
           >
-            <Table
-              columns={columns}
-              dataSource={sortedRounds}
-              loading={loadingRounds}
-              pagination={false}
-              rowKey={(row) => getRoundDetailCode(row)}
-              scroll={{ x: 1120 }}
+            <Tabs
+              activeKey={roundTab}
+              onChange={handleRoundTabChange}
+              items={[
+                {
+                  key: "active",
+                  label: (
+                    <Space size={6}>
+                      <span>รอบที่กำลังจัดการ</span>
+                      <Tag>{sortedRounds.length}</Tag>
+                    </Space>
+                  ),
+                  children: (
+                    <Table
+                      columns={columns}
+                      dataSource={sortedRounds}
+                      loading={loadingRounds}
+                      pagination={{
+                        pageSize: 10,
+                        showSizeChanger: true,
+                        showTotal: (total) => `ทั้งหมด ${total} รอบ`,
+                      }}
+                      rowKey={(row) => getRoundDetailCode(row)}
+                      scroll={{ x: 1120 }}
+                    />
+                  ),
+                },
+                {
+                  key: "completed",
+                  label: (
+                    <Space size={6}>
+                      <span>เสร็จสิ้นแล้ว</span>
+                      {hasLoadedCompletedRounds && (
+                        <Tag color="success">{sortedCompletedRounds.length}</Tag>
+                      )}
+                    </Space>
+                  ),
+                  children: (
+                    <Table
+                      columns={columns}
+                      dataSource={sortedCompletedRounds}
+                      loading={loadingCompletedRounds}
+                      locale={{
+                        emptyText: hasLoadedCompletedRounds
+                          ? "ยังไม่มีรอบประเมินที่เสร็จสิ้น"
+                          : "กำลังโหลดข้อมูล",
+                      }}
+                      pagination={{
+                        pageSize: 10,
+                        showSizeChanger: true,
+                        showTotal: (total) => `ทั้งหมด ${total} รอบ`,
+                      }}
+                      rowKey={(row) => getRoundDetailCode(row)}
+                      scroll={{ x: 1120 }}
+                    />
+                  ),
+                },
+              ]}
             />
           </Card>
         </Col>

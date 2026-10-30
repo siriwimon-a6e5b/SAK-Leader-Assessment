@@ -5,9 +5,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 export function getSafeBackPath(pathname = "", search = "") {
   const params = new URLSearchParams(search);
   const roundCode = params.get("EVC_Code");
+  const assessmentTypeId = params.get("EVT_ID");
   const fromPage = params.get("from");
-  const roundSearch = roundCode
-    ? `?EVC_Code=${encodeURIComponent(roundCode)}`
+  const assessmentParams = new URLSearchParams();
+  if (roundCode) assessmentParams.set("EVC_Code", roundCode);
+  if (assessmentTypeId) assessmentParams.set("EVT_ID", assessmentTypeId);
+  const assessmentSearch = assessmentParams.toString()
+    ? `?${assessmentParams.toString()}`
     : "";
 
   if (pathname.startsWith("/User_Assess_Supervisor_Form")) {
@@ -15,7 +19,7 @@ export function getSafeBackPath(pathname = "", search = "") {
       return "/User_out";
     }
 
-    return `/User_Assess_Supervisor${roundSearch}`;
+    return `/User_Assess_Supervisor${assessmentSearch}`;
   }
 
   if (

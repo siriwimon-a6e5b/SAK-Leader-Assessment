@@ -4,12 +4,28 @@ import { Avatar, Button, Space, Tag, Typography } from "antd";
 import RoleViewSwitch from "./RoleViewSwitch";
 import HeaderUserIdentity from "./HeaderUserIdentity";
 import { appConfig } from "../../config/appConfig";
+import { readCurrentUserDetail } from "../../recoilstore/userStores";
+import { readTokenValue } from "../../utils/tokenUtils";
+
+function getPositionLevel(value) {
+  const level = Number(readTokenValue(value).replace(/\D/g, ""));
+  return Number.isFinite(level) ? level : 0;
+}
 
 export default function UserHeader() {
   const roleConfig = appConfig.roles.user;
   const userLevel =
     sessionStorage.getItem(appConfig.auth.userLevelStorageKey) || "employee";
   const userLevelConfig = appConfig.userLevels[userLevel];
+  const positionLevel = getPositionLevel(readCurrentUserDetail()?.PerPST_LV);
+  const canViewRegionalManual = positionLevel > 0 &&
+    positionLevel <= appConfig.manualRules.regionalMaximumPositionLevel;
+  const manuals = [
+    { key: "employee", label: "คู่มือพนักงาน", path: appConfig.manuals.employee },
+    ...(canViewRegionalManual
+      ? [{ key: "regional", label: "คู่มือส่วนของเขต", path: appConfig.manuals.regional }]
+      : []),
+  ];
 
   return (
     <header className="app-header app-header-modern">
@@ -27,9 +43,18 @@ export default function UserHeader() {
         <Tag className="role-tag user-role-tag">
           {userLevelConfig?.label || roleConfig.label}
         </Tag>
-        <Button icon={<BookOutlined />} size="small">
-          {roleConfig.manualLabel}
-        </Button>
+        {manuals.map((manual) => (
+          <Button
+            key={manual.key}
+            icon={<BookOutlined />}
+            size="small"
+            href={manual.path}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {manual.label}
+          </Button>
+        ))}
        
         <RoleViewSwitch currentRole="user" />
       <EvaluationNotifications />   <HeaderUserIdentity />

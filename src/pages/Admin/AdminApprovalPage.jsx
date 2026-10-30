@@ -2,6 +2,7 @@ import { CheckCircleOutlined, CopyOutlined, DownOutlined, EditOutlined, EyeOutli
 import { Alert, Avatar, Button, Card, Col, Collapse, Empty, Input, Modal, Row, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import apiClient, { getInitialUserDetail } from "../../recoilstore/userStores";
+import { mapWithConcurrency } from "../../utils/asyncUtils";
 import { readTokenValue } from "../../utils/tokenUtils";
 import { refreshApprovalCount } from "../../stores/approvalNotifications";
 import PagePanel, { MetricCard } from "../components/PagePanel";
@@ -90,6 +91,19 @@ function mapApprovalRow(row = {}) {
   };
 }
 
+function canDisplayApprovalRow(row, userDetail) {
+  const targetWorkplace = String(row.EVP_WorkplaceCode || "").toUpperCase();
+
+  // รายการพื้นที่อื่นแสดงตามเดิม
+  if (targetWorkplace !== "WP0011") return true;
+
+  // รายการของฝ่ายบุคคลแสดงเฉพาะผู้จัดการฝ่ายบุคคล
+  return (
+    readTokenValue(userDetail.PerPST).toUpperCase() === "PST026" &&
+    readTokenValue(userDetail.PerWP).toUpperCase() === "WP0011"
+  );
+}
+
 async function writeClipboardText(text) {
   if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(text);
@@ -150,6 +164,7 @@ export default function AdminApprovalPage() {
   const [saving, setSaving] = useState(false);
   const requestId = useRef(0);
   const analysisRequestId = useRef(0);
+  const detailRequestController = useRef(null);
 
   const summary = useMemo(
     () => ({
@@ -160,40 +175,48 @@ export default function AdminApprovalPage() {
     [approvalList],
   );
 
-  const loadApprovalList = useCallback(async () => {
+  const loadApprovalList = useCallback(async (signal) => {
     setLoadingList(true);
 
     try {
       const { data } = await apiClient.get(
         "/api/insurances/getEvaluationApprovalList",
-        { params: { status: "all" } },
+        { signal, params: { status: "all" } },
       );
 
       setApprovalList(
         getRows(data)
           .map(mapApprovalRow)
+          .filter((row) => canDisplayApprovalRow(row, userDetail))
           .sort((a, b) => Number(approved(a)) - Number(approved(b))),
       );
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
       setApprovalList([]);
       messageApi.error(errorMessage(error, "โหลดรายการอนุมัติไม่สำเร็จ"));
     } finally {
-      setLoadingList(false);
+      if (!signal?.aborted) setLoadingList(false);
     }
-  }, [messageApi]);
+  }, [messageApi, userDetail]);
 
   useEffect(() => {
+    const controller = new AbortController();
     // The initial request uses the same loader as refresh after approval.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadApprovalList();
-    return () => { requestId.current += 1; };
+    loadApprovalList(controller.signal);
+    return () => {
+      controller.abort();
+      requestId.current += 1;
+      detailRequestController.current?.abort();
+    };
   }, [loadApprovalList]);
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
 
-    apiClient.get("/api/insurances/getAssessmentType")
+    apiClient.get("/api/insurances/getAssessmentType", { signal: controller.signal })
       .then(({ data }) => {
         if (active) setAssessmentTypes(getRows(data));
       })
@@ -204,7 +227,10 @@ export default function AdminApprovalPage() {
         if (active) setLoadingAssessmentTypes(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [messageApi]);
 
   const assessmentTypeOptions = useMemo(() => {
@@ -243,6 +269,9 @@ export default function AdminApprovalPage() {
 
   const openDetail = async (item) => {
     const id = ++requestId.current;
+    detailRequestController.current?.abort();
+    const controller = new AbortController();
+    detailRequestController.current = controller;
     setSelectedItem(item);
     analysisRequestId.current += 1;
     setDetails([]);
@@ -258,11 +287,14 @@ export default function AdminApprovalPage() {
     setLoadingDetail(true);
 
     try {
-      const submissions = await Promise.all(
-        item.submissions.map(async (submission) => {
+      const submissions = await mapWithConcurrency(
+        item.submissions,
+        4,
+        async (submission) => {
           const { data } = await apiClient.get(
             "/api/insurances/getEvaluationDetailApproval",
             {
+              signal: controller.signal,
               params: {
                 EVC_Code: item.EVC_Code,
                 EVP_TargetID: item.EVP_TargetID,
@@ -286,7 +318,8 @@ export default function AdminApprovalPage() {
             ai_analysis: firstRow.ai_analysis ?? firstRow.ai_analysis_result ?? submission.ai_analysis ?? "",
             answers: rows.filter((row) => row.LAQ_ID),
           };
-        }),
+        },
+        controller.signal,
       );
 
       if (id !== requestId.current) return;
@@ -314,11 +347,15 @@ export default function AdminApprovalPage() {
         "",
       ).trim());
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error(error);
       if (id === requestId.current) {
         setDetailError(errorMessage(error, "โหลดรายละเอียดการประเมินไม่สำเร็จ"));
       }
     } finally {
+      if (detailRequestController.current === controller) {
+        detailRequestController.current = null;
+      }
       if (id === requestId.current) setLoadingDetail(false);
     }
   };
@@ -326,8 +363,11 @@ export default function AdminApprovalPage() {
   const closeDetail = () => {
     if (saving) return;
 
+    detailRequestController.current?.abort();
+    detailRequestController.current = null;
     requestId.current += 1;
     analysisRequestId.current += 1;
+    setLoadingDetail(false);
     setSelectedItem(null);
     setCombinedComment("");
     setAiAnalysisText("");

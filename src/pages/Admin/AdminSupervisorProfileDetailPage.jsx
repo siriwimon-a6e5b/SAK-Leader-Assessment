@@ -21,6 +21,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import PagePanel from "../components/PagePanel";
 import ProfileYearlyScoreChart from "../components/ProfileYearlyScoreChart";
 import apiClient from "../../recoilstore/userStores";
+import { mapWithConcurrency } from "../../utils/asyncUtils";
 
 import { formatBuddhistYear, formatThaiProfileDate, formatThaiProfileDateShort, formatThaiRound, formatWorkTenure } from "../../utils/thaiProfileDates";
 
@@ -323,7 +324,7 @@ export default function AdminSupervisorProfileDetailPage() {
     );
   };
 
-  const fetchSupervisorProfileDetail = useCallback(async () => {
+  const fetchSupervisorProfileDetail = useCallback(async (signal) => {
     if (!employeeCode) return;
 
     setLoadingProfile(true);
@@ -331,6 +332,7 @@ export default function AdminSupervisorProfileDetailPage() {
 
     try {
       const response = await apiClient.get(SUPERVISOR_PROFILE_DETAIL_API, {
+        signal,
         params: {
           employeeCode,
           EVP_TargetID: employeeCode,
@@ -357,6 +359,7 @@ export default function AdminSupervisorProfileDetailPage() {
           const evaluatorHistoryResponse = await apiClient.get(
             EVALUATOR_HISTORY_API,
             {
+              signal,
               params: {
                 EVP_EvaluatorID: employeeCode,
               },
@@ -375,14 +378,17 @@ export default function AdminSupervisorProfileDetailPage() {
           mappedGivenEvaluationHistory =
             evaluatorHistoryRows.map(mapGivenEvaluation);
         } catch (error) {
+          if (signal?.aborted) throw error;
           console.error(error);
           mappedGivenEvaluationHistory = [];
         }
       }
 
       if (mappedGivenEvaluationHistory.length) {
-        mappedGivenEvaluationHistory = await Promise.all(
-          mappedGivenEvaluationHistory.map(async (item) => {
+        mappedGivenEvaluationHistory = await mapWithConcurrency(
+          mappedGivenEvaluationHistory,
+          2,
+          async (item) => {
             if (item.topicScores?.length) return item;
 
             try {
@@ -390,6 +396,7 @@ export default function AdminSupervisorProfileDetailPage() {
                 apiClient.get(
                   EVALUATION_DETAIL_API,
                   {
+                    signal,
                     params: {
                       EVC_Code: item.EVC_Code,
                       submission_ID: item.submissionId || undefined,
@@ -401,6 +408,7 @@ export default function AdminSupervisorProfileDetailPage() {
                 apiClient.get(
                   FORM_DETAIL_API,
                   {
+                    signal,
                     params: {
                       EVC_Code: item.EVC_Code,
                       supervisor_id: item.targetId,
@@ -419,10 +427,12 @@ export default function AdminSupervisorProfileDetailPage() {
                 ),
               };
             } catch (error) {
+              if (signal?.aborted) throw error;
               console.error(error);
               return item;
             }
-          }),
+          },
+          signal,
         );
       }
 
@@ -431,6 +441,7 @@ export default function AdminSupervisorProfileDetailPage() {
       setGivenEvaluationHistory(mappedGivenEvaluationHistory);
       setPositionTimeline(timelineRows.map(mapPositionTimeline));
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
       setLoadError("โหลดข้อมูลหัวหน้าไม่สำเร็จ");
       setSupervisor(null);
@@ -438,12 +449,15 @@ export default function AdminSupervisorProfileDetailPage() {
       setGivenEvaluationHistory([]);
       setPositionTimeline([]);
     } finally {
-      setLoadingProfile(false);
+      if (!signal?.aborted) setLoadingProfile(false);
     }
   }, [employeeCode]);
 
   useEffect(() => {
-    fetchSupervisorProfileDetail();
+    const controller = new AbortController();
+    fetchSupervisorProfileDetail(controller.signal);
+
+    return () => controller.abort();
   }, [fetchSupervisorProfileDetail]);
 
   if (!employeeCode) return <Navigate to="/Admin_Supervisor_Profile" replace />;

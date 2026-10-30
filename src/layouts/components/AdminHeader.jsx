@@ -20,7 +20,13 @@ export default function AdminHeader() {
       </Space>
 
       <Space className="header-actions" size={10} wrap>
-        <Button icon={<BookOutlined />} size="small">
+        <Button
+          icon={<BookOutlined />}
+          size="small"
+          href={roleConfig.manualPath}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           {roleConfig.manualLabel}
         </Button>
         <Tag className="role-tag admin-role-tag">{roleConfig.label}</Tag>

@@ -130,7 +130,11 @@ function mapUserDetail(userTokenData) {
     PerST: userTokenData._PerST || userTokenData.PerST,
     PerPST: userTokenData._PerPST || userTokenData.PerPST,
     PerPST_N: userTokenData._PerPST_N || userTokenData.PerPST_N,
-    PerPST_LV: userTokenData._PerPST_LV || userTokenData.PerPST_LV,
+    PerPST_LV:
+      userTokenData._PerPST_LV ||
+      userTokenData.PerPST_LV ||
+      userTokenData._PSTLv_Code ||
+      userTokenData.PSTLv_Code,
     PerWP: userTokenData._PerWP || userTokenData.PerWP,
     PerWP_N: userTokenData._PerWP_N || userTokenData.PerWP_N,
     PerBL: userTokenData._PerBL || userTokenData.PerBL,

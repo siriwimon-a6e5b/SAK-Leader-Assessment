@@ -35,7 +35,6 @@ const DASHBOARD_ROUNDS_API = "/api/insurances/getAssessmentDashboardRounds";
 const DASHBOARD_DETAIL_API = "/api/insurances/getAssessmentDashboardDetail";
 const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
 const DASHBOARD_TABLE_PAGE_SIZE = 50;
-const DASHBOARD_LOADING_DELAY = 1000;
 const SCORE_FILTER_OPTIONS = [
   { label: "คะแนน 3.50 - 4.00", value: "excellent" },
   { label: "คะแนน 3.00 - 3.49", value: "good" },
@@ -76,12 +75,6 @@ function getNumber(value, fallback = 0) {
   const numberValue = Number(value);
 
   return Number.isFinite(numberValue) ? numberValue : fallback;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
 }
 
 function getPercent(value, total) {
@@ -564,12 +557,12 @@ export default function AdminDashboardPage() {
   }, [roundSupervisorRows, tableFilters]);
 
   //การ์ดรอบ
-  const fetchAssessmentRounds = useCallback(async () => {
+  const fetchAssessmentRounds = useCallback(async (signal) => {
     setLoadingRounds(true);
     setLoadError("");
 
     try {
-      const response = await apiClient.get(DASHBOARD_ROUNDS_API);
+      const response = await apiClient.get(DASHBOARD_ROUNDS_API, { signal });
 
       // console.log("DASHBOARD ROUNDS:", response.data);
 
@@ -634,16 +627,17 @@ export default function AdminDashboardPage() {
 
       setSelectedYear((currentYear) => currentYear || apiRounds[0]?.year || "");
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
 
       setLoadError("โหลดรายการรอบประเมินไม่สำเร็จ");
       setAssessmentRounds([]);
     } finally {
-      setLoadingRounds(false);
+      if (!signal?.aborted) setLoadingRounds(false);
     }
   }, []);
 
-  const fetchDashboardDetail = useCallback(async (round) => {
+  const fetchDashboardDetail = useCallback(async (round, signal) => {
     if (!round?.id) return;
 
     const requestId = ++dashboardRequest.current;
@@ -652,16 +646,14 @@ export default function AdminDashboardPage() {
     setLoadError("");
 
     try {
-      const [response] = await Promise.all([
-        apiClient.get(DASHBOARD_DETAIL_API, {
-          params: {
-            EVC_ID: round.EVC_ID,
-            EVC_Code: round.EVC_Code,
-            EVT_ID: round.EVT_ID,
-          },
-        }),
-        wait(DASHBOARD_LOADING_DELAY),
-      ]);
+      const response = await apiClient.get(DASHBOARD_DETAIL_API, {
+        signal,
+        params: {
+          EVC_ID: round.EVC_ID,
+          EVC_Code: round.EVC_Code,
+          EVT_ID: round.EVT_ID,
+        },
+      });
 
       if (requestId !== dashboardRequest.current) return;
       const result = getApiResult(response.data);
@@ -674,6 +666,7 @@ export default function AdminDashboardPage() {
       setSupervisorRows(apiRows);
       setDashboardMeta(mapDashboardMeta(result, apiRows));
     } catch (error) {
+      if (signal?.aborted) return;
       if (requestId !== dashboardRequest.current) return;
       console.error(error);
       setLoadError("โหลดข้อมูลแดชบอร์ดไม่สำเร็จ");
@@ -686,7 +679,9 @@ export default function AdminDashboardPage() {
         scoreDistribution: [],
       });
     } finally {
-      if (requestId === dashboardRequest.current) setLoadingDashboard(false);
+      if (!signal?.aborted && requestId === dashboardRequest.current) {
+        setLoadingDashboard(false);
+      }
     }
   }, []);
 
@@ -1088,12 +1083,19 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    if (selectedRound) fetchDashboardDetail(selectedRound);
+    if (!selectedRound) return undefined;
+
+    const controller = new AbortController();
+    fetchDashboardDetail(selectedRound, controller.signal);
+
+    return () => controller.abort();
   }, [selectedRound, fetchDashboardDetail]);
 
   useEffect(() => {
-    // alert("asdasd");
-    fetchAssessmentRounds();
+    const controller = new AbortController();
+    fetchAssessmentRounds(controller.signal);
+
+    return () => controller.abort();
   }, [fetchAssessmentRounds]);
 
   if (!selectedRoundId) {
@@ -1548,7 +1550,7 @@ export default function AdminDashboardPage() {
         <Col xs={24} lg={12}>
           <Card
             className="clean-card admin-dashboard-insight-card"
-            title="สถานะการประเมินผู้บังคับบัญ"
+            title="สถานะการประเมินผู้บังคับบัญ" 
             variant="outlined"
           >
             <div className="admin-status-overview row">

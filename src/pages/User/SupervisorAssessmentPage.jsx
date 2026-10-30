@@ -275,7 +275,7 @@ export default function SupervisorAssessmentPage() {
       // className="supervisor-assessment-page"
       eyebrow="Supervisor Assessment"
       title={pageTitle}
-      description="ระบบแสดงรายชื่อหัวหน้าที่อยู่ในพื้นที่ทำงานหรือฝ่ายเดียวกัน เลือกรายชื่อเพื่อเข้าสู่แบบประเมิน"
+      description="ระบบแสดงรายชื่อหัวหน้าในพื้นที่เดียวกัน รวมถึงผู้จัดการเขตและผู้บริหารภาคธุรกิจตามสายงานของคุณ"
     >
       <Row gutter={[16, 16]} className="supervisor-summary-row">
         <Col xs={24} md={8}>
@@ -317,7 +317,7 @@ export default function SupervisorAssessmentPage() {
         title={
           <Space size={10} wrap>
             <TeamOutlined />
-            <span>รายชื่อผู้บังคับบัญชาในฝ่ายเดียวกัน</span>
+            <span>รายชื่อผู้บังคับบัญชาที่ประเมินได้</span>
           </Space>
         }
         extra={
@@ -378,6 +378,16 @@ export default function SupervisorAssessmentPage() {
                       {supervisor.is_previous_workplace_supervisor === true && (
                         <Tag color="orange" style={{ whiteSpace: "normal" }}>
                           ผู้บังคับบัญชา พื้นที่ปฏิบัติงานเดิม
+                        </Tag>
+                      )}
+                      {supervisor.is_district_business_executive === true && (
+                        <Tag color="orange" style={{ whiteSpace: "normal" }}>
+                          ผู้บริหารเขตธุรกิจ
+                        </Tag>
+                      )}
+                      {supervisor.is_regional_business_executive === true && (
+                        <Tag color="purple" style={{ whiteSpace: "normal" }}>
+                          ผู้บริหารภาคธุรกิจตามสายงาน
                         </Tag>
                       )}
                     </div>
