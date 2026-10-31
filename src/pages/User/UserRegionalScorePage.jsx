@@ -22,8 +22,8 @@ import apiClient from "../../recoilstore/userStores";
 import PagePanel from "../components/PagePanel";
 import AiAnalysisSummary from "../components/AiAnalysisSummary";
 
-const ROUNDS_API = "/api/insurances/getAssessmentDashboardRounds";
-const REGIONAL_SCORES_API = "/api/insurances/getUserRegionalAssessmentScores";
+const ROUNDS_API = "/getAssessmentDashboardRounds";
+const REGIONAL_SCORES_API = "/getUserRegionalAssessmentScores";
 
 function getApiRows(data) {
   const result = data?.result ?? data?.data ?? data;

@@ -28,7 +28,7 @@ export function loadOwnAssessmentResults(force = false) {
     } catch { /* Invalid or unavailable cache: use one request. */ }
   }
   useOwnAssessmentResults.setState({ key, status: "loading", canView: false, rounds: [], error: "" });
-  const promise = apiClient.get("/api/insurances/getOwnAssessmentResults")
+  const promise = apiClient.get("/getOwnAssessmentResults")
     .then(({ data }) => {
       if (useOwnAssessmentResults.getState().key !== key) return;
       const result = data?.result;

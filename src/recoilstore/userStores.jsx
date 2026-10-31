@@ -3,12 +3,22 @@ import CryptoJS from "crypto-js";
 import { appConfig } from "../config/appConfig";
 
 const BASE_URL = import.meta.env.VITE_REACT_APP_API_URL;
+const ASSESSMENT_API_PREFIX =
+  import.meta.env.VITE_ASSESSMENT_API_PREFIX || "/api/assessment";
 const BASE_API_KEY = import.meta.env.VITE_REACT_APP_API_KEY;
 const TOKEN_STORAGE_KEY = appConfig.auth.tokenStorageKey;
 const TOKEN_SECRET_KEY = "secret-key-value";
 
+function buildAssessmentBaseUrl(baseUrl, apiPrefix) {
+  const normalizedBaseUrl = String(baseUrl || "").replace(/\/+$/, "");
+  const normalizedPrefix = String(apiPrefix || "/api/assessment")
+    .replace(/^\/+|\/+$/g, "");
+
+  return `${normalizedBaseUrl}/${normalizedPrefix}`;
+}
+
 const apiClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: buildAssessmentBaseUrl(BASE_URL, ASSESSMENT_API_PREFIX),
 });
 
 apiClient.interceptors.request.use(

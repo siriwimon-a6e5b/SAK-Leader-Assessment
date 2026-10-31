@@ -42,7 +42,7 @@ export function refreshPendingAssessments(force = false) {
   }
 
   inFlight = apiClient
-    .get("/api/insurances/getAssessmentRound", {
+    .get("/getAssessmentRound", {
       params: { PerD: params.PerD, EVC_Status: "1", page: 1, limit: 100 },
     })
     .then(async ({ data }) => {
@@ -55,7 +55,7 @@ export function refreshPendingAssessments(force = false) {
           if (!EVC_Code) return ["", 0];
 
           const response = await apiClient.get(
-            "/api/insurances/getAssessmentRoundPermissionUser",
+            "/getAssessmentRoundPermissionUser",
             {
               params: {
                 ...params,

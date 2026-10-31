@@ -33,7 +33,7 @@ import { buildAdminTokenPayload } from "../../utils/tokenUtils";
 
 const SUPERVISOR_PAGE_SIZE = 50;
 const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
-const ROUND_DETAIL_PAGE_API = "/api/insurances/getAssessmentRoundDetailPage";
+const ROUND_DETAIL_PAGE_API = "/getAssessmentRoundDetailPage";
 const initialSupervisorFilters = {
   employeeCode: "",
   employeeName: "",
@@ -577,7 +577,7 @@ export default function AdminAssessmentRoundDetailPage() {
       setLoadingEmployeePreview(true);
 
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermissionEmployee",
+        "/getAssessmentRoundPermissionEmployee",
         {
           params: {
             employeeCode,
@@ -664,7 +664,7 @@ export default function AdminAssessmentRoundDetailPage() {
       // return
 
       const response = await apiClient.post(
-        "/api/insurances/updateAssessmentRoundPermissionStatus",
+        "/updateAssessmentRoundPermissionStatus",
         payload,
       );
       const { status, message } = response.data || {};
@@ -732,7 +732,7 @@ export default function AdminAssessmentRoundDetailPage() {
       setAddingEmployee(true);
 
       const response = await apiClient.post(
-        "/api/insurances/createAssessmentRoundPermissionEmployee",
+        "/createAssessmentRoundPermissionEmployee",
         payload,
       );
       const { status, message } = response.data || {};

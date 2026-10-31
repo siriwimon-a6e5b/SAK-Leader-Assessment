@@ -72,11 +72,16 @@ export default function AiAnalysisSummary({ value, compact = false, showHeader =
         <div className="ai-insight-summary-heading">
           <span className="ai-insight-summary-icon" aria-hidden="true"><RobotOutlined /></span>
           <div>
-            <span className="ai-insight-summary-kicker">AI INSIGHT</span>
-            <strong>สรุปวิเคราะห์จาก AI</strong>
+          <span className="ai-insight-summary-kicker">
+  ผลการวิเคราะห์ความคิดเห็น
+</span>
+
+<strong>
+  สรุปผลการประเมินและข้อเสนอแนะ
+</strong>
             <small>เรียบเรียงจากความคิดเห็นที่ผ่านการตรวจสอบแล้ว</small>
           </div>
-          <span className="ai-insight-summary-status"><i /> พร้อมใช้งาน</span>
+          <span className="ai-insight-summary-status"><i /> ตรวจสอบแล้ว</span>
         </div>
       ) : null}
 

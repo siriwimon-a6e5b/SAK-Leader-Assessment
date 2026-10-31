@@ -27,8 +27,8 @@ import { useNavigate } from "react-router-dom";
 import PagePanel, { MetricCard } from "../components/PagePanel";
 import apiClient from "../../recoilstore/userStores";
 
-const DASHBOARD_ROUNDS_API = "/api/insurances/getAssessmentDashboardRounds";
-const DASHBOARD_DETAIL_API = "/api/insurances/getAssessmentDashboardDetail";
+const DASHBOARD_ROUNDS_API = "/getAssessmentDashboardRounds";
+const DASHBOARD_DETAIL_API = "/getAssessmentDashboardDetail";
 const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
 const DASHBOARD_TABLE_PAGE_SIZE = 50;
 

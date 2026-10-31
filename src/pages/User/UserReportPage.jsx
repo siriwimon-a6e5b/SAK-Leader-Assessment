@@ -166,7 +166,7 @@ export default function UserReportPage() {
 
     try {
       const { data } = await apiClient.get(
-        "/api/insurances/getEvaluationHistoryUser",
+        "/getEvaluationHistoryUser",
         {
           params: {
             EVP_EvaluatorID: PerD,
@@ -251,7 +251,7 @@ export default function UserReportPage() {
       };
 
       const { data } = await apiClient.post(
-        "/api/insurances/verifyEvaluationHistoryAccess",
+        "/verifyEvaluationHistoryAccess",
         payload,
       );
 

@@ -419,7 +419,7 @@ export default function AdminAssessmentRoundDetailPage() {
 
     try {
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundDetailSub",
+        "/getAssessmentRoundDetailSub",
         {
           params: {
             EVC_Code: roundCode,
@@ -444,7 +444,7 @@ export default function AdminAssessmentRoundDetailPage() {
     try {
       const filters = getCleanSupervisorFilters(activeSupervisorFilters);
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermission",
+        "/getAssessmentRoundPermission",
         {
           params: {
             EVC_Code: roundCode,
@@ -581,7 +581,7 @@ export default function AdminAssessmentRoundDetailPage() {
       setLoadingEmployeePreview(true);
 
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermissionEmployee",
+        "/getAssessmentRoundPermissionEmployee",
         {
           params: {
             employeeCode,
@@ -636,7 +636,7 @@ export default function AdminAssessmentRoundDetailPage() {
       }
 
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermission",
+        "/getAssessmentRoundPermission",
         {
           params: {
             EVC_Code: roundCode,
@@ -671,7 +671,7 @@ export default function AdminAssessmentRoundDetailPage() {
       // return
 
       const response = await apiClient.post(
-        "/api/insurances/updateAssessmentRoundPermissionStatus",
+        "/updateAssessmentRoundPermissionStatus",
         payload,
       );
       const { status, message } = response.data || {};
@@ -737,7 +737,7 @@ export default function AdminAssessmentRoundDetailPage() {
       setAddingEmployee(true);
 
       const response = await apiClient.post(
-        "/api/insurances/createAssessmentRoundPermissionEmployee",
+        "/createAssessmentRoundPermissionEmployee",
         payload,
       );
       const { status, message } = response.data || {};

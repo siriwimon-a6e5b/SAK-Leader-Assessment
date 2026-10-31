@@ -46,7 +46,7 @@ export default function LeaderDashboardPage() {
 
     try {
       await apiClient.post(
-        "/api/insurances/acknowledgeOwnAssessmentResult",
+        "/acknowledgeOwnAssessmentResult",
         { EVC_Code: acknowledgementRound.EVC_Code },
       );
       markOwnAssessmentResultAcknowledged(acknowledgementRound.EVC_Code);

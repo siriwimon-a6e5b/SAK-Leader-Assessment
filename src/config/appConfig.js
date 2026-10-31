@@ -24,7 +24,7 @@ export const appConfig = {
   roles: { 
     admin: {
       label: "ผู้ดูแลระบบ",
-      subtitle: "ระบบจัดการการประเมินหัวหน้างาน",
+      subtitle: "ระบบประเมินผู้บังคับบัญชา",
       manualLabel: "คู่มือผู้ดูแลระบบ",
       manualPath: manualPaths.hr,
       footerLabel: "Admin console",

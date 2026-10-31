@@ -22,7 +22,7 @@ export default function EvaluationNotifications() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await apiClient.get("/api/insurances/getEvaluationNotifications", { signal: controller.signal });
+      const { data } = await apiClient.get("/getEvaluationNotifications", { signal: controller.signal });
       if (!controller.signal.aborted) setRows(data?.result?.rows || []);
     } catch (err) {
       if (!controller.signal.aborted) setError(err?.response?.data?.message || "โหลดการแจ้งเตือนไม่สำเร็จ");
@@ -51,7 +51,7 @@ export default function EvaluationNotifications() {
     setReading(String(item.submission_ID));
     setError("");
     try {
-      const { data } = await apiClient.post("/api/insurances/readEvaluationNotification", { submission_ID: item.submission_ID });
+      const { data } = await apiClient.post("/readEvaluationNotification", { submission_ID: item.submission_ID });
       if (Number(data?.result?.statusUser_read) !== 1) throw new Error("บันทึกสถานะอ่านไม่สำเร็จ");
       setRows((current) => current.filter((row) => String(row.submission_ID) !== String(item.submission_ID)));
       setOpen(false);

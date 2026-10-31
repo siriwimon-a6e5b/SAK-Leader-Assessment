@@ -23,7 +23,7 @@ import PagePanel, { MetricCard } from "../components/PagePanel";
 import apiClient from "../../recoilstore/userStores";
 
 const SUPERVISOR_PROFILE_LIST_API =
-  "/api/insurances/getSupervisorProfileList";
+  "/getSupervisorProfileList";
 const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
 const SUPERVISOR_PROFILE_PAGE_SIZE = 50;
 

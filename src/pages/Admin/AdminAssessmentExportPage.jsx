@@ -24,8 +24,8 @@ import { readTokenValue } from "../../utils/tokenUtils";
 import PagePanel from "../components/PagePanel";
 import AiAnalysisSummary from "../components/AiAnalysisSummary";
 
-const ROUNDS_API = "/api/insurances/getAssessmentDashboardRounds";
-const EXPORT_REPORT_API = "/api/insurances/getAssessmentExportReport";
+const ROUNDS_API = "/getAssessmentDashboardRounds";
+const EXPORT_REPORT_API = "/getAssessmentExportReport";
 
 function getApiRows(data) {
   const result = data?.result ?? data?.data ?? data;

@@ -94,7 +94,7 @@ export default function UserDashboardPage() {
     setLoadError("");
 
     try {
-      const response = await apiClient.get("/api/insurances/getAssessmentRound", {
+      const response = await apiClient.get("/getAssessmentRound", {
         params: {
           PerD,
           EVC_Status: "1",

@@ -146,7 +146,7 @@ export default function SupervisorAssessmentPage() {
     // return;
     
     const { data } = await apiClient.get(
-      "/api/insurances/getEvaluationDetail",
+      "/getEvaluationDetail",
       {
         params: {
           EVC_Code: roundCode,
@@ -238,7 +238,7 @@ export default function SupervisorAssessmentPage() {
 
     try {
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundPermissionUser",
+        "/getAssessmentRoundPermissionUser",
         {
           params: payload,
         },

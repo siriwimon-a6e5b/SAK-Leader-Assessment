@@ -488,7 +488,7 @@ export default function SupervisorAssessmentFormPage() {
 
     try {
       // alert(supervisorId);
-      const response = await apiClient.get("/api/insurances/getFormDetailUser", {
+      const response = await apiClient.get("/getFormDetailUser", {
         params: {
           EVC_Code: roundCode,
           supervisor_id: supervisorId,
@@ -577,7 +577,7 @@ export default function SupervisorAssessmentFormPage() {
     setSubmitting(true);
 
     try {
-      await apiClient.post("/api/insurances/InsertEvaluation", payload);
+      await apiClient.post("/InsertEvaluation", payload);
       messageApi.success("ส่งแบบประเมินเรียบร้อยแล้ว");
     } catch (error) {
       console.error(error);

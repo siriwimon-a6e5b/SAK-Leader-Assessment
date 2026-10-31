@@ -26,10 +26,10 @@ import { mapWithConcurrency } from "../../utils/asyncUtils";
 import { formatBuddhistYear, formatThaiProfileDate, formatThaiProfileDateShort, formatThaiRound, formatWorkTenure } from "../../utils/thaiProfileDates";
 
 const SUPERVISOR_PROFILE_DETAIL_API =
-  "/api/insurances/getSupervisorProfileDetail";
-const EVALUATOR_HISTORY_API = "/api/insurances/getEvaluationHistoryUser";
-const EVALUATION_DETAIL_API = "/api/insurances/getEvaluationDetail";
-const FORM_DETAIL_API = "/api/insurances/getFormDetailUser";
+  "/getSupervisorProfileDetail";
+const EVALUATOR_HISTORY_API = "/getEvaluationHistoryUser";
+const EVALUATION_DETAIL_API = "/getEvaluationDetail";
+const FORM_DETAIL_API = "/getFormDetailUser";
 const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
 
 function getScorePercent(score) {

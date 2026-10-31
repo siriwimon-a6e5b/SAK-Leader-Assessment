@@ -33,7 +33,7 @@ import PagePanel from "../components/PagePanel";
 import AiAnalysisSummary from "../components/AiAnalysisSummary";
 
 const EMPLOYEE_PHOTO_URL = "https://apimb.sakerp.org/file_photoEMP";
-const SUPERVISOR_DETAIL_API = "/api/insurances/getAssessmentSupervisorDetail";
+const SUPERVISOR_DETAIL_API = "/getAssessmentSupervisorDetail";
 
 const assessmentTypes = [
   {

@@ -509,14 +509,39 @@ export default function AdminAssessmentRoundsPage() {
     editingRound?.formName,
     forms,
   ]);
-  const sortedRounds = useMemo(
-    () =>
-      [...rounds].sort(
+  const latestRoundId = useMemo(() => {
+    const latestRound = [...rounds].sort(
+      (left, right) => getRoundOrderValue(right) - getRoundOrderValue(left),
+    )[0];
+
+    return latestRound?.id;
+  }, [rounds]);
+  const latestClosedRoundId = useMemo(() => {
+    const latestClosedRound = rounds
+      .filter((round) => round.status === "closed")
+      .sort(
         (left, right) =>
           getRoundOrderValue(right) - getRoundOrderValue(left),
-      ),
-    [rounds],
-  );
+      )[0];
+
+    return latestClosedRound?.id;
+  }, [rounds]);
+  const sortedRounds = useMemo(() => {
+    const getPriority = (round) => {
+      if (round.id === latestClosedRoundId) return 0;
+      if (round.id === latestRoundId) return 1;
+      if (round.status === "open") return 2;
+      return 3;
+    };
+
+    return [...rounds].sort((left, right) => {
+      const priorityDifference = getPriority(left) - getPriority(right);
+
+      if (priorityDifference !== 0) return priorityDifference;
+
+      return getRoundOrderValue(right) - getRoundOrderValue(left);
+    });
+  }, [latestClosedRoundId, latestRoundId, rounds]);
   const sortedCompletedRounds = useMemo(
     () =>
       [...completedRounds].sort(
@@ -525,13 +550,11 @@ export default function AdminAssessmentRoundsPage() {
       ),
     [completedRounds],
   );
-  const latestRoundId = sortedRounds[0]?.id;
-
   const fetchAssessmentTypes = useCallback(async (signal) => {
     setLoadingAssessmentTypes(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getAssessmentType", { signal });
+      const response = await apiClient.get("/getAssessmentType", { signal });
       const typeList = getApiAssessmentTypeList(response.data);
       const options = typeList
         .map(mapApiAssessmentType)
@@ -552,7 +575,7 @@ export default function AdminAssessmentRoundsPage() {
     setLoadingForms(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getFormSub", { signal });
+      const response = await apiClient.get("/getFormSub", { signal });
       const { result = [] } = response.data || {};
       const apiForms = Array.isArray(result) ? result : [];
       // console.log(result)
@@ -572,7 +595,7 @@ export default function AdminAssessmentRoundsPage() {
 
     try {
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRound",
+        "/getAssessmentRound",
         { signal, params: { view: "active" } },
       );
       const roundList = getApiRoundList(response.data);
@@ -589,23 +612,24 @@ export default function AdminAssessmentRoundsPage() {
     }
   }, [messageApi]);
 
-  const fetchCompletedAssessmentRounds = useCallback(async () => {
+  const fetchCompletedAssessmentRounds = useCallback(async (signal) => {
     setLoadingCompletedRounds(true);
 
     try {
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRound",
-        { params: { view: "completed" } },
+        "/getAssessmentRound",
+        { signal, params: { view: "completed" } },
       );
       const roundList = getApiRoundList(response.data);
 
       setCompletedRounds(roundList.map((item) => mapCreatedRoundFromApi(item)));
       setHasLoadedCompletedRounds(true);
     } catch (error) {
+      if (signal?.aborted) return;
       console.error(error);
       messageApi.error("โหลดรอบประเมินที่เสร็จสิ้นแล้วไม่สำเร็จ");
     } finally {
-      setLoadingCompletedRounds(false);
+      if (!signal?.aborted) setLoadingCompletedRounds(false);
     }
   }, [messageApi]);
 
@@ -624,9 +648,15 @@ export default function AdminAssessmentRoundsPage() {
     fetchAssessmentTypes(controller.signal);
     fetchAssessmentForms(controller.signal);
     fetchAssessmentRounds(controller.signal);
+    fetchCompletedAssessmentRounds(controller.signal);
 
     return () => controller.abort();
-  }, [fetchAssessmentForms, fetchAssessmentRounds, fetchAssessmentTypes]);
+  }, [
+    fetchAssessmentForms,
+    fetchAssessmentRounds,
+    fetchAssessmentTypes,
+    fetchCompletedAssessmentRounds,
+  ]);
 
   const summary = useMemo(() => {
     const openRounds = rounds.filter((item) => item.status === "open").length;
@@ -664,7 +694,7 @@ export default function AdminAssessmentRoundsPage() {
       setCreatingRound(true);
 
       const response = await apiClient.post(
-        "/api/insurances/createAssessmentRound",
+        "/createAssessmentRound",
         payload,
       );
 
@@ -680,7 +710,6 @@ export default function AdminAssessmentRoundsPage() {
       }
 
       await fetchAssessmentRounds();
-      setHasLoadedCompletedRounds(false);
       setOpenCreate(false);
       form.resetFields();
       messageApi.success(
@@ -747,7 +776,7 @@ export default function AdminAssessmentRoundsPage() {
 
       // console.log(payload);
       const response = await apiClient.post(
-        "/api/insurances/updateAssessmentRoundStatus",
+        "/updateAssessmentRoundStatus",
         payload,
       );
       const { status, message } = response.data || {};
@@ -761,10 +790,10 @@ export default function AdminAssessmentRoundsPage() {
       messageApi.success(
         getDisplayMessage(message, "อัปเดตสถานะรอบประเมินเรียบร้อยแล้ว"),
       );
-      await fetchAssessmentRounds();
-      if (hasLoadedCompletedRounds) {
-        await fetchCompletedAssessmentRounds();
-      }
+      await Promise.all([
+        fetchAssessmentRounds(),
+        fetchCompletedAssessmentRounds(),
+      ]);
     } catch (error) {
       if (targetRound) {
         updateRounds((current) =>
@@ -807,7 +836,7 @@ export default function AdminAssessmentRoundsPage() {
     // return;
     try {
       const response = await apiClient.get(
-        "/api/insurances/getAssessmentRoundDetail",
+        "/getAssessmentRoundDetail",
         {
           params: {
             EVC_ID: getRoundId(round),
@@ -853,7 +882,7 @@ export default function AdminAssessmentRoundsPage() {
       setSavingEditRound(true);
 
       const response = await apiClient.post(
-        "/api/insurances/updateAssessmentRound",
+        "/updateAssessmentRound",
         payload,
       );
       const { status, message, result } = response.data || {};

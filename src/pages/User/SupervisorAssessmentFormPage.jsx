@@ -450,7 +450,7 @@ export default function SupervisorAssessmentFormPage() {
     setLoadError("");
 
     try {
-      const { data } = await apiClient.get("/api/insurances/getFormDetailUser", {
+      const { data } = await apiClient.get("/getFormDetailUser", {
         params: {
           EVC_Code: roundCode,
           supervisor_id: supervisorId,
@@ -524,7 +524,7 @@ export default function SupervisorAssessmentFormPage() {
     }
 
     try {
-      const { data } = await apiClient.get("/api/insurances/getEvaluationDetail", {
+      const { data } = await apiClient.get("/getEvaluationDetail", {
         params: {
           EVC_Code: roundCode,
           submission_ID: submissionId || undefined,
@@ -645,7 +645,7 @@ export default function SupervisorAssessmentFormPage() {
     setSubmitting(true);
 
     try {
-      await apiClient.post("/api/insurances/InsertEvaluation", pendingSubmission.payload);
+      await apiClient.post("/InsertEvaluation", pendingSubmission.payload);
       refreshPendingAssessments(true);
       setPendingSubmission(null);
       await Swal.fire({

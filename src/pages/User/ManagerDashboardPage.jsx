@@ -1,6 +1,6 @@
 import AdminAssessmentExportPage from "../Admin/AdminAssessmentExportPage";
 
-const REGIONAL_SCORES_API = "/api/insurances/getUserRegionalAssessmentScores";
+const REGIONAL_SCORES_API = "/getUserRegionalAssessmentScores";
 
 export default function ManagerDashboardPage() {
   return (

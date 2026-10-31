@@ -356,7 +356,7 @@ export default function AdminAssessmentFormsPage() {
     setLoadingForms(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getForm");
+      const response = await apiClient.get("/getForm");
       const apiForms = getApiFormList(response.data).map(mapApiAssessmentForm);
 
       setForms(apiForms);
@@ -385,7 +385,7 @@ export default function AdminAssessmentFormsPage() {
     setLoadingAssessmentTypes(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getAssessmentType");
+      const response = await apiClient.get("/getAssessmentType");
       const responseData = response.data;
       const typeList = getApiAssessmentTypeList(responseData);
       const options = typeList.map(mapApiAssessmentType);
@@ -413,7 +413,7 @@ export default function AdminAssessmentFormsPage() {
     setLoadingFormDetail(true);
 
     try {
-      const response = await apiClient.get("/api/insurances/getFormDetail", {
+      const response = await apiClient.get("/getFormDetail", {
         params: {
           LAF_ID: selectedFormId,
           // assessment_type: supervisorAssessmentType,
@@ -506,7 +506,7 @@ export default function AdminAssessmentFormsPage() {
 
     try {
       const response = await apiClient.post(
-        "/api/insurances/createFormDetail",
+        "/createFormDetail",
         payload,
       );
       const { status, message } = response.data || {};
@@ -555,7 +555,7 @@ export default function AdminAssessmentFormsPage() {
         PerTiNa: adminToken.PerTiNa,
       };
       const response = await apiClient.post(
-        "/api/insurances/updateFormStatus",
+        "/updateFormStatus",
         payload,
       );
       const { status, message, data } = response.data || {};
@@ -618,7 +618,7 @@ export default function AdminAssessmentFormsPage() {
             PerTiNa: adminToken.PerTiNa,
           };
           const response = await apiClient.post(
-            "/api/insurances/deleteForm",
+            "/deleteForm",
             payload,
           );
           const { status, message } = response.data || {};
@@ -687,7 +687,7 @@ export default function AdminAssessmentFormsPage() {
           // console.log(payload)
 
           const response = await apiClient.post(
-            "/api/insurances/deleteFormTopic",
+            "/deleteFormTopic",
             payload,
           );
           const { status, message } = response.data || {};
@@ -762,7 +762,7 @@ export default function AdminAssessmentFormsPage() {
           };
 
           const response = await apiClient.post(
-            "/api/insurances/deleteFormQuestion",
+            "/deleteFormQuestion",
             payload,
           );
           const { status, message } = response.data || {};
@@ -803,7 +803,7 @@ export default function AdminAssessmentFormsPage() {
 
       try {
         const response = await apiClient.post(
-          "/api/insurances/createForm",
+          "/createForm",
           payload,
         );
 

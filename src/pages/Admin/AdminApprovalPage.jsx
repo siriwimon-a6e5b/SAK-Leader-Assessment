@@ -10,7 +10,7 @@ import AiAnalysisSummary from "../components/AiAnalysisSummary";
 
 const scoreColumns = [5, 4, 3, 2, 1];
 const commentPreviewLength = 100;
-const geminiAnalysisApi = "/api/insurances/analyzeEvaluationComments";
+const geminiAnalysisApi = "/analyzeEvaluationComments";
 
 function getCommentPreview(comment, expanded) {
   const text = String(comment || "").trim();
@@ -180,7 +180,7 @@ export default function AdminApprovalPage() {
 
     try {
       const { data } = await apiClient.get(
-        "/api/insurances/getEvaluationApprovalList",
+        "/getEvaluationApprovalList",
         { signal, params: { status: "all" } },
       );
 
@@ -216,7 +216,7 @@ export default function AdminApprovalPage() {
     let active = true;
     const controller = new AbortController();
 
-    apiClient.get("/api/insurances/getAssessmentType", { signal: controller.signal })
+    apiClient.get("/getAssessmentType", { signal: controller.signal })
       .then(({ data }) => {
         if (active) setAssessmentTypes(getRows(data));
       })
@@ -292,7 +292,7 @@ export default function AdminApprovalPage() {
         4,
         async (submission) => {
           const { data } = await apiClient.get(
-            "/api/insurances/getEvaluationDetailApproval",
+            "/getEvaluationDetailApproval",
             {
               signal: controller.signal,
               params: {
@@ -447,7 +447,7 @@ export default function AdminApprovalPage() {
 
     try {
       const { data } = await apiClient.post(
-        "/api/insurances/updateEvaluationApproval",
+        "/updateEvaluationApproval",
         payload,
       );
 
