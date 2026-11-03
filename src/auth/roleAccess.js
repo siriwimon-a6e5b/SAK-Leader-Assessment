@@ -48,6 +48,10 @@ function parsePositionLevel(value) {
 export function getUserLevelFromToken(token, role) {
   if (role !== "user") return "employee";
 
+  // ผู้ดูแลระบบที่สลับมาทดสอบมุมมอง User ต้องเข้าถึงเมนูของหัวหน้างานได้
+  // โดยไม่ขึ้นกับระดับตำแหน่งจริงของเจ้าหน้าที่ Admin
+  if (getRoleFromToken(token).role === "admin") return "manager";
+
   const employeeId = readTokenValue(token.PerD);
   const workplaceCode = readTokenValue(token.PerWP);
   const PerPST_LV = parsePositionLevel(token.PerPST_LV);

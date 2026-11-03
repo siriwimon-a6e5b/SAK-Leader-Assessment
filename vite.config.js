@@ -1,8 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+
+  base: mode === "production"
+    ? "https://sak-assment.sakerp.org/"
+    : "/",
 
   server: {
     headers: {
@@ -20,9 +24,6 @@ export default defineConfig({
     ],
   },
 
-  // หาก Deploy ใน Subfolder ให้เปิดใช้งาน
-  // base: "/SAKAssessment/",
-
   build: {
     cssCodeSplit: false,
 
@@ -37,9 +38,9 @@ export default defineConfig({
           return "assets/[name][extname]";
         },
       },
-    },
+    }, 
   },
-});
+}));
 
 
 //แบบเดิม

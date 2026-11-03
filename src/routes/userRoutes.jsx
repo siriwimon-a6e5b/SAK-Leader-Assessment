@@ -99,8 +99,7 @@ export const userRoutes = [
     icon: <BarChartOutlined />,
     element: <LeaderDashboardPage />,
     showInMenu: true,
-    allowedUserLevels: allUserLevels,
-    requiresOwnResults: true,
+    allowedUserLevels: ["leader", "manager"],
   },
   // {
   //   key: "leader-assessment",
